@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<parms>
+    <BufferFileSize>1254</BufferFileSize>
+    <NetworkConfig>
+        <IntAdrress>121.0.0.1</IntAdrress>
+        <Ports>1</Ports>
+        <Ports>2</Ports>
+    </NetworkConfig>
+    <Receiver>
+        <NumberPacketBlock>255</NumberPacketBlock>
+        <NumberPacketToHold>255</NumberPacketToHold>
+        <OutPath>/home/benjamin/eclipse-workspace/UDP/test</OutPath>
+        <Timeout>0</Timeout>
+        <WorkspacePath>/home/benjamin/eclipse-workspace/UDP/test</WorkspacePath>
+    </Receiver>
+    <Sender>
+        <MMUPacketLength>12</MMUPacketLength>
+    </Sender>
+</parms>
