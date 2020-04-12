@@ -95,8 +95,10 @@ public class ReceiverInterface
 				}else if(rep_event instanceof ReceivedEvent)
 				{
 					finish = Instant.now();
-					long timeElapsed = Duration.between(start, finish).toMillis();
-					System.out.println("time="+timeElapsed);
+					if(start!=null)
+					{	long timeElapsed = Duration.between(start, finish).toMillis();
+						System.out.println("time="+timeElapsed);
+					}
 					
 					ReceivedEvent evt = (ReceivedEvent)rep_event;
 					if(evt.exception!=null)

@@ -119,7 +119,7 @@ public class Main
 	private static final int nb_packet = nb_packet_to_hold*100;
 	private static final int block_size = 1200;
 	private static final PacketBufferInfo info = new PacketBufferInfo(block_size);
-	private static final String work_directory = "/home/benjamin/eclipse-workspace/UDP/test";
+	private static final String work_directory = System.getProperty("user.dir") + File.separator + "test";
 	private static final byte[] init_data = new byte[nb_packet*block_size+3];
 	
 	
@@ -173,7 +173,17 @@ public class Main
 		
 		
 		
-		int number_threads = 5;
+		int number_threads = 2;
+		
+		int[] ports = new int[number_threads];
+		for(int i=0; i<number_threads; i++)
+		{
+			ports[i] = i;
+		}
+		Parms.instance().getNetworkConfig().setPorts(ports);
+		Parms.instance().receiver().setOutPath(work_directory);
+		Parms.instance().receiver().setWorkspace(work_directory);
+		
 		int h = list.size()/number_threads;
 		int total_size = list.size();
 		ArrayList<ConcurrentLinkedQueue<byte[]>> sub_lists = new ArrayList<ConcurrentLinkedQueue<byte[]>>();
@@ -181,7 +191,7 @@ public class Main
 		System.out.println("list lenght="+list.size());
 		System.out.println("list shuffled");
 		
-		for(int i=0; i<number_threads; i++)
+		/*for(int i=0; i<number_threads; i++)
 		{
 			ConcurrentLinkedQueue<byte[]> tmp = new ConcurrentLinkedQueue<byte[]>();
 			if(i==0)
@@ -208,13 +218,13 @@ public class Main
 		for(int i=0; i<number_threads; i++)
 		{
 			count+=sub_lists.get(i).size();
-		}
+		}*/
 		
 		//sub_lists.get(0).add(list.get(0));
 		//sub_lists.get(0).add(list.get(h));
-		System.out.println("total size="+total_size+"  | currnt size="+(count-1));
+		//System.out.println("total size="+total_size+"  | currnt size="+(count-1));
 		
-		/*for(int i=0; i<number_threads; i++)
+		for(int i=0; i<number_threads; i++)
 		{
 			ConcurrentLinkedQueue<byte[]> tmp = new ConcurrentLinkedQueue<byte[]>();
 			sub_lists.add(tmp);
@@ -232,11 +242,10 @@ public class Main
 				}
 			}
 		}
-		list.clear();*/
+		list.clear();
 	
 
 		System.out.println("start");
-		Parms.instance().getNetworkConfig().setPorts(new int[] {1,2,3,4,5});
 		
 		ReceiverInterface ritf = new ReceiverInterface(Parms.instance().getNetworkConfig(), nb_packet_to_hold, nb_packet_block, buffer_file_size, timeout, sub_lists);
 		ritf.start();

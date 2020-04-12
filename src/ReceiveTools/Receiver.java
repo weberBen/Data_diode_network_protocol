@@ -651,7 +651,7 @@ public class Receiver
         	{
         		System.out.println("Thread ID="+ID+" sleep");
         		try {
-					Thread.sleep(500);
+					Thread.sleep(1000);
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
@@ -684,7 +684,7 @@ public class Receiver
 						streamInfo.setManifest(buffer);
 						System.out.println("thread "+ID+" manifest end");
 						try {
-							Thread.sleep(100);
+							Thread.sleep(500);
 						} catch (InterruptedException e) {
 							// TODO Auto-generated catch block
 							e.printStackTrace();
@@ -700,7 +700,7 @@ public class Receiver
 					if(val==1)
 						throw new IOException();
 					
-					 final long INTERVAL = 500;
+					 final long INTERVAL = 1000;
 					    long start = System.nanoTime();
 					    long end=0;
 					    do{
