@@ -22,10 +22,9 @@ public class ReceiverInterface
 	private int nb_packet_block;
 	private int buffer_file_size;
 	private long timeout;
-	private ArrayList<ConcurrentLinkedQueue<byte[]>> listd;
 	private static int THREAD_COUNT = 0;
 	
-	public ReceiverInterface(NetworkAddress networkConf, int nb_packet_to_hold, int nb_packet_block, int buffer_file_size, long timeout, ArrayList<ConcurrentLinkedQueue<byte[]>> listd)
+	public ReceiverInterface(NetworkAddress networkConf, int nb_packet_to_hold, int nb_packet_block, int buffer_file_size, long timeout)
 	{
 		this.receiver = new Receiver();
 		this.scanner = new Scanner(System.in);
@@ -34,7 +33,6 @@ public class ReceiverInterface
 		this.nb_packet_block = nb_packet_block;
 		this.buffer_file_size = buffer_file_size;
 		this.timeout = timeout;
-		this.listd = listd;
 	}
 	
 	private int getNewThreadId()
@@ -79,6 +77,7 @@ public class ReceiverInterface
 					}else
 					{
 						System.out.println("manifest exeption="+evt.exception);
+						evt.exception.printStackTrace();
 						try {
 							receiver.close();
 						} catch (IOException e) {
@@ -103,13 +102,15 @@ public class ReceiverInterface
 					ReceivedEvent evt = (ReceivedEvent)rep_event;
 					if(evt.exception!=null)
 					{
-						System.out.println("received object from stream id="+evt.manifest.id+" equals="+evt.info);
+						System.out.println("received object from stream id="+evt.manifest.id+" equals="+evt.exception);
+						evt.exception.printStackTrace();
 					}else
 					{
 						
 						if(evt.manifest==null)
 						{
 							System.out.println("received object from stream , exception="+evt.exception);
+							evt.exception.printStackTrace();
 						}else
 						{
 							System.out.println("received object from stream id="+evt.manifest.id+" info="+evt.info);
@@ -128,7 +129,7 @@ public class ReceiverInterface
 		};
 		
 		System.out.println("adresse ports="+networkConf);
-		ReceiverListener receiver_listener = new ReceiverListener(networkConf, nb_packet_to_hold, nb_packet_block, buffer_file_size, timeout, changeListner, listd);
+		ReceiverListener receiver_listener = new ReceiverListener(networkConf, nb_packet_to_hold, nb_packet_block, buffer_file_size, timeout, changeListner);
 		
 		receiver.addReceivedRequest(receiver_listener);
 		

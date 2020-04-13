@@ -38,6 +38,8 @@ public final class DataType implements Serializable
 	private String label;
 	private ContentActionInterface itf;
 	
+	private static final HashMap<Integer, DataType> MAP = new HashMap<Integer, DataType>();
+	
 	private DataType(int id, String label, ContentActionInterface itf)
 	{
 		if(itf!=null && itf.metadataClass()!=null && !Metadata.class.isAssignableFrom(itf.metadataClass())) 
@@ -48,6 +50,8 @@ public final class DataType implements Serializable
 		this.id = id;
 		this.label = label;
 		this.itf = itf;
+		
+		MAP.put(id, this);
 	}
 	
 	
@@ -292,8 +296,5 @@ public final class DataType implements Serializable
 	public static final DataType Clipboard = new DataType(2, "Clipboard", ITF_CLIPBOARD);
 	public static final DataType PacketsRecovery = new DataType(3, "PacketsRecovery", null);
 	public static final DataType PlainTxt = new DataType(4, "PlainTxt", ITF_PLAIN_TXT);
-	
-	public static final HashMap<Integer, DataType> MAP = new HashMap<Integer, DataType>() 
-	{{ put(File.id, File); put(Clipboard.id, Clipboard); put(PacketsRecovery.id, PacketsRecovery); }};
 }
 

@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Scanner;
 
-public class UserConsol extends Process
+public class UserConsol
 {
 	private HashMap<String, ConsoleInterface> actions;
 	private Scanner scanner;
@@ -33,7 +33,7 @@ public class UserConsol extends Process
 		System.out.println(">>"+s);
 	}
 	
-	@Override
+	//@Override
 	public void start()
 	{
 		String line;
@@ -65,14 +65,9 @@ public class UserConsol extends Process
 			{
 				write("No command named <<"+command+">> found");
 			}
-			action()
+			//action()
 			
 		}
 	}
 	
-	@Override
-	public void stop()
-	{
-		
-	}
 }

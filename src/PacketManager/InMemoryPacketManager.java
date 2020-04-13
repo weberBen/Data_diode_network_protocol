@@ -1,10 +1,12 @@
 package PacketManager;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Map;
 
 import EnvVariables.Environment;
+import Exceptions.IncompleteContentException;
 import PacketConstructor.Manifest;
 import PacketConstructor.PacketBufferInfo;
 import PacketConstructor.PacketHeader;
@@ -163,7 +165,10 @@ public class InMemoryPacketManager extends PacketManager
 		return true;
 	}
 	
-	public void update() throws IOException {}
+	public java.util.List<PacketType> update() throws IOException 
+	{
+		return null;
+	}
 	
 	public void close(boolean save_objects){}
 	
@@ -175,10 +180,10 @@ public class InMemoryPacketManager extends PacketManager
 	}
 	
 	
-	public byte[] getArray(int type_id)
+	public byte[] getArray(int type_id) throws IncompleteContentException
 	{
 		if(!isComplete(type_id))
-			return null;
+			throw new IncompleteContentException();
 		
 		return getBuffer(type_id);
 	}
@@ -221,11 +226,9 @@ public class InMemoryPacketManager extends PacketManager
 		return count;
 	}
 	
-	public PacketContent getContent(int type_id)
+	public PacketContent getContent(int type_id) throws IncompleteContentException
 	{
 		byte[] buffer = getArray(type_id);
-		if(buffer==null)
-			return null;
 		
 		return new PacketContent(buffer);
 	}

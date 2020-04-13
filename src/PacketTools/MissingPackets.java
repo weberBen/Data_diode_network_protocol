@@ -2,19 +2,28 @@ package PacketTools;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import EnvVariables.Environment;
 
 public class MissingPackets 
 {
-	private ArrayList<Range> metadata_packets;
-	private ArrayList<Range> data_packets;
+	private final List<Range> metadata_packets;
+	private final List<Range> data_packets;
 	
 	
 	public MissingPackets(ArrayList<Range> metadata_packets, ArrayList<Range> data_packets)
 	{
-		this.metadata_packets = metadata_packets;
-		this.data_packets = data_packets;
+		if(metadata_packets==null)
+			this.metadata_packets = null;
+		else
+			this.metadata_packets = Collections.unmodifiableList(metadata_packets);
+		
+		if(data_packets==null)
+			this.data_packets = null;
+		else
+			this.data_packets = Collections.unmodifiableList(metadata_packets);
 	}
 	
 	public long getNumberPackets()
@@ -32,7 +41,7 @@ public class MissingPackets
 		return countRanges(metadata_packets);
 	}
 	
-	private long countRanges(ArrayList<Range> list)
+	private long countRanges(List<Range> list)
 	{
 		if(list==null)
 			return 0;
@@ -47,27 +56,37 @@ public class MissingPackets
 	}
 	
 	
-	public ArrayList<Range> getMetadataPackets()
+	public List<Range> getMetadataPackets()
 	{
 		return metadata_packets;
 	}
 	
-	public ArrayList<Range> getDataPackets()
+	public List<Range> getDataPackets()
 	{
 		return data_packets;
 	}
 	
 	
-	public static ArrayList<Range> getMetadataMissingPackets(String work_directory, long start_search_index, long number_packets)
+	public static List<Range> getMetadataMissingPackets(String work_directory, long start_search_index, long number_packets)
 	{
 		Environment.RawPacketFilenameFromIndex int_data = (work_dir, index) -> { return Environment.getRawMetadataFilename(work_dir, index); };
-		return findMissingPacket(work_directory, int_data, start_search_index, number_packets);
+		ArrayList<Range> output =  findMissingPacket(work_directory, int_data, start_search_index, number_packets);
+		
+		if(output==null)
+			return null;
+		
+		return Collections.unmodifiableList(output);
 	}
 	
-	public static ArrayList<Range> getDataMissingPackets(String work_directory, long start_search_index, long number_packets)
+	public static List<Range> getDataMissingPackets(String work_directory, long start_search_index, long number_packets)
 	{
 		Environment.RawPacketFilenameFromIndex int_data = (work_dir, index) -> { return Environment.getRawDataFilename(work_dir, index); };
-		return findMissingPacket(work_directory, int_data, start_search_index, number_packets);
+		ArrayList<Range> output = findMissingPacket(work_directory, int_data, start_search_index, number_packets);
+		
+		if(output==null)
+			return null;
+		
+		return Collections.unmodifiableList(output);
 	}
 	
 	private static ArrayList<Range> findMissingPacket(String work_directory, Environment.RawPacketFilenameFromIndex interface_packet_filename, long start_search_index, long number_packets)

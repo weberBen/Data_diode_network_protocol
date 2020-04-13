@@ -10,6 +10,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -21,6 +22,7 @@ import java.util.Set;
 
 import EnvVariables.Environment;
 import EnvVariables.Parms;
+import Exceptions.IncompleteContentException;
 import PacketConstructor.Manifest;
 import PacketConstructor.PacketBufferInfo;
 import PacketConstructor.PacketHeader;
@@ -404,10 +406,10 @@ public class InFilePacketManager extends PacketManager
 		return true;
 	}
 	
-	private void update(List list) throws IOException
+	private boolean update(List list) throws IOException
 	{
 		if(list==null)
-			return;
+			return true;
 		
 		BufferedOutputStream stream_out = getStream(list.getType());
 		//System.out.println("MANEGR number witten="+list.getCountFlag(Flag.WRITTEN));
@@ -421,7 +423,7 @@ public class InFilePacketManager extends PacketManager
 			
 			if(pos==null)
 			{//System.out.println("pos null at index="+index);
-				break;
+				return false;
 			}
 			else if(pos.type==Pos.MEMORY_TYPE)
 			{
@@ -439,23 +441,32 @@ public class InFilePacketManager extends PacketManager
 			}else
 			{
 				//System.out.println("unkwno t index="+index+"  pos="+pos);
-				break;
+				return false;
 			}
 			
 			list.nextIndex();
 		}
+		
+		return true;
 			
 	}
 	
-	public void update() throws IOException
+	public java.util.List<PacketType> update() throws IOException
 	{
+		ArrayList<PacketType> output = new ArrayList<PacketType>();
 		for(List list : packet_lists)
 		{
 			if(list==null)
 				continue;
 			
-			update(list);
+			if(!update(list))
+				output.add(list.getType());
 		}
+		
+		if(output.size()==0)
+			return null;
+		
+		return Collections.unmodifiableList(output);
 	}
 	
 
@@ -463,9 +474,6 @@ public class InFilePacketManager extends PacketManager
 	{
 		List list = getList(type_id);
 		if(list==null)
-			return 0;
-		
-		if(list.getIndex()>=list.length())
 			return 0;
 		
 		return list.length() - list.getCountNotNull();
@@ -544,9 +552,6 @@ public class InFilePacketManager extends PacketManager
 			if(list==null)
 				continue;
 			
-			if(list.getIndex()>=list.length())
-				continue;
-			
 			if(list.getCountFlag(Flag.WRITTEN)!=list.length())
 				return false;
 		}
@@ -578,26 +583,25 @@ public class InFilePacketManager extends PacketManager
 		return count;
 	}
 	
-	public String getFilename(int type_id)
+	public String getFilename(int type_id) throws IncompleteContentException
 	{
 		List list = getList(type_id);
+		System.out.println("FILENAME LIST : list==null?"+(list==null)+"  | number written="+list.getCountFlag(Flag.WRITTEN)+"  | list length="+list.length());
 		if(list!=null  && (list.getCountFlag(Flag.WRITTEN)!=list.length()))
-			return  null;
+			throw new IncompleteContentException();
 		
 		return getMergeFilename(work_dir, type_id);
 	}
 	
 	
-	public String getFilename(PacketType type)
+	public String getFilename(PacketType type) throws IncompleteContentException
 	{
 		return getFilename(type.getId());
 	}
 	
-	public PacketContent getContent(int type_id)
+	public PacketContent getContent(int type_id) throws IncompleteContentException
 	{
 		String filename = getFilename(type_id);
-		if(filename==null)
-			return null;
 		
 		return new PacketContent(filename);
 	}

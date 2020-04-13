@@ -29,6 +29,16 @@ public class Tools
 		return getBytesFromFile(file);
 	}
 	
+	public static void sleep(long interval_nano)
+	{
+	    long start = System.nanoTime();
+	    long end=0;
+	    do
+	    {
+	        end = System.nanoTime();
+	    }while(start + interval_nano >= end);
+	}
+	
 	public static byte[] getBytesFromFile(File file) throws IOException 
 	{        
         // Get the size of the file

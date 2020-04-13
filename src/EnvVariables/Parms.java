@@ -22,7 +22,7 @@ public class Parms
 	
 	@XmlTransient
 	private static Parms instance;
-	private static final String filename = "/home/benjamin/eclipse-workspace/UDP/test/parms.xml";
+	private static final String filename = System.getProperty("user.dir") + File.separator + "test" + File.separator + "parms.xml";
 	
 	protected Parms() {}
 	

@@ -44,6 +44,8 @@ public class Environment
 	
 	public static final String STRING_CODEX = "UTF-8";
 	
+	public static final int BYTES_UDP_HEADER = 100;
+	
 	//public static int BUFFER_FILE_SIZE=8192;
 	
 

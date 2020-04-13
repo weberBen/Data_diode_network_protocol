@@ -1,11 +1,13 @@
 package PacketManager;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
+import Exceptions.IncompleteContentException;
 import PacketConstructor.Manifest;
 
 import PacketConstructor.PacketBufferInfo;
@@ -124,8 +126,8 @@ public abstract class PacketManager
 		return true;
 	}
 	
-	public abstract PacketContent getContent(int type_id);
-	public PacketContent getContent(PacketType type)
+	public abstract PacketContent getContent(int type_id) throws IncompleteContentException;
+	public PacketContent getContent(PacketType type) throws IncompleteContentException
 	{
 		return getContent(type.getId());
 	}
@@ -133,7 +135,7 @@ public abstract class PacketManager
 	public abstract long totalLength();
 	public abstract long length();
 	public abstract String getWorkDirectory();
-	public abstract void update() throws IOException;
+	public abstract java.util.List<PacketType> update() throws IOException;
 	
 	public Manifest getManifest()
 	{

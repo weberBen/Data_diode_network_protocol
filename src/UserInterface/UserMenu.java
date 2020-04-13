@@ -108,6 +108,45 @@ public class UserMenu
 		submenu.addItem(item);
 		
 		
+					//****************************************************
+		itf = new MenuItemInterface()
+		{
+			public void applyChange(String line) throws IllegalArgumentException, SaveObjectException
+			{
+				try
+				{
+					int val = Integer.parseInt(line);
+					if(val<=0)
+						throw new IllegalArgumentException("input value is <=0");
+					
+					Parms.instance().sender().setSendRate(val);
+					
+					try
+					{
+						Parms.save();
+					}catch(JAXBException e)
+					{
+						throw new SaveObjectException(e);
+					}
+					
+				}catch(NumberFormatException e)
+				{
+					throw new IllegalArgumentException("input value is not an integer");
+				}
+			}
+			
+			public String prevValue()
+			{
+				return ""+Parms.instance().sender().getSendRate();
+			}
+		};
+		
+		item = new MenuItem("Bit rate", 
+				"set the delay between the send of two packets", 
+				"long greater than 0 (in nanosecond)", 
+				itf);
+		submenu.addItem(item);
+		
 		menu.addItem(submenu);
 		
 		

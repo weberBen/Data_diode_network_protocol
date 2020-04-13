@@ -45,6 +45,7 @@ import javax.swing.event.ChangeListener;
 import EnvVariables.Environment;
 import EnvVariables.Parms;
 import Exceptions.EndOfPacketReassemblingException;
+import Exceptions.IncompleteContentException;
 import Exceptions.InvalidPacketStreamException;
 import Exceptions.ReassemblingException;
 import Metadata.ContentActionInterface;
@@ -88,13 +89,13 @@ public class Receiver
 		this.is_running = new AtomicBoolean(false);
 	}
 	
-	private PacketReceiver[] setReceiveThread(NetworkAddress address, StreamInfo streamInfo, int buffer_size, ArrayList<ConcurrentLinkedQueue<byte[]>> listd) throws SocketException
+	private PacketReceiver[] setReceiveThread(NetworkAddress address, StreamInfo streamInfo, int buffer_size) throws SocketException
 	{
 		int[] ports = address.getPorts();
 		PacketReceiver[] list = new PacketReceiver[ports.length];
 		for(int i=0; i<list.length; i++)
 		{
-			list[i] = new PacketReceiver(ports[i], address.getIp(), streamInfo, buffer_size, listd.get(i));
+			list[i] = new PacketReceiver(ports[i], address.getIp(), streamInfo, buffer_size);
 		}
 		
 		return list;
@@ -161,7 +162,7 @@ public class Receiver
         		{
         			try
         			{
-        				receive_threads = setReceiveThread(receiver_listener.address, streamInfo, Environment.MAXIMUN_PACKET_SIZE, receiver_listener.list);
+        				receive_threads = setReceiveThread(receiver_listener.address, streamInfo, Environment.MAXIMUN_PACKET_SIZE);
         				
         			}catch(SocketException e)
         			{
@@ -243,6 +244,7 @@ public class Receiver
         		}
         		catch(Exception e)
         		{System.out.println("oki 2 exception="+e);
+        		
         			ReceptionEvent event = new ReceivedEvent(manifest, new Exception(e));
     				publish(event);
     				
@@ -436,7 +438,7 @@ public class Receiver
 	}*/
 	
 	
-	private byte[] getReceivedMetadata(ConcurrentPacketList pool) throws IOException
+	private byte[] getReceivedMetadata(ConcurrentPacketList pool) throws IOException, IncompleteContentException
 	{
 		if(pool==null)
 			return null;
@@ -456,7 +458,7 @@ public class Receiver
 		}
 	}
 	
-	public byte[] getReceivedMetadata(long id) throws IOException
+	public byte[] getReceivedMetadata(long id) throws IOException, IncompleteContentException
 	{
 		ConcurrentPacketList pool = mapIdList.get(id);
 		if(pool==null)
@@ -468,15 +470,18 @@ public class Receiver
 		
 	}
 	
-	private PacketContent getReceivedData(ConcurrentPacketList pool)
+	private Object getReceivedData(ConcurrentPacketList pool) throws IncompleteContentException
 	{
 		if(pool==null)
+		{
+			System.out.println("POOL IS NULL get content data");
 			return null;
+		}
 		
-		return pool.getContent(PacketType.TYPE_DATA);
+		return pool.getContent(PacketType.TYPE_DATA).content;
 	}
 		
-	public PacketContent getReceivedData(long id)
+	public Object getReceivedData(long id) throws IncompleteContentException
 	{
 		ConcurrentPacketList pool = mapIdList.get(id);
 		if(pool==null)
@@ -502,7 +507,7 @@ public class Receiver
 		if(itf==null)
 			return null;
 		
-		return itf.actionOn(getReceivedMetadata(pool), getReceivedData(pool).content);
+		return itf.actionOn(getReceivedMetadata(pool), getReceivedData(pool));
 	}
 		
 	public String finalizeReceivedOperation(long id) throws Exception
@@ -528,7 +533,7 @@ public class Receiver
 		public StreamInfo()
 		{
 			this.packetReader = new PacketReader(Manifest.BYTES);
-			this.is_waiting = new AtomicBoolean(false);
+			this.is_waiting = new AtomicBoolean(true);
 			this.buffer_set = new AtomicBoolean(false);
 			this.stop = new AtomicBoolean(false);
 		}
@@ -621,23 +626,21 @@ public class Receiver
 		private volatile DatagramSocket socket;
 		private StreamInfo streamInfo;
 		private int buffer_size;
-		private ConcurrentLinkedQueue<byte[]> list;
 		
-		public PacketReceiver(int port, InetAddress ip, StreamInfo streamInfo, int buffer_size, ConcurrentLinkedQueue<byte[]> list) throws SocketException
+		public PacketReceiver(int port, InetAddress ip, StreamInfo streamInfo, int buffer_size) throws SocketException
 		{
 			this.ID = count++;
 			this.stop = false;
-			//this.socket = new DatagramSocket(port, ip);
+			this.socket = new DatagramSocket(port, ip);
 			this.streamInfo = streamInfo;
 			this.buffer_size = buffer_size;
-			this.list = list;
 		}
 		
 		
 		public void close()
 		{
 			stop = true;
-			//socket.close();
+			socket.close();
 		}
 		
 		public void run()
@@ -645,37 +648,16 @@ public class Receiver
 			byte[] buffer;
 			DatagramPacket packet;
 			ConcurrentPacketList packets_pool;
-			int i = 0;
-			
-			if(ID!=0)
-        	{
-        		System.out.println("Thread ID="+ID+" sleep");
-        		try {
-					Thread.sleep(1000);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-        	}
-			
 			
 			while(!stop)
 			{
 		        try 
-		        {int val = 0;
+		        {
 		        	buffer = new byte[buffer_size];
 		        	packet = new DatagramPacket(buffer, buffer.length);
 		        	
-					//socket.receive(packet);
+					socket.receive(packet);
 		        	
-		        	buffer = list.poll();
-		        	
-		        	i++;
-		        	
-		        	if(buffer==null)
-		        	{//System.out.println("Thred Id="+ID+" buffer null");
-		        		break;
-		        	}
 		        	packet.setData(buffer);
 		        	packet.setLength(buffer.length);
 					
@@ -683,12 +665,6 @@ public class Receiver
 					{System.out.println("thread "+ID+"  get manifest");
 						streamInfo.setManifest(buffer);
 						System.out.println("thread "+ID+" manifest end");
-						try {
-							Thread.sleep(500);
-						} catch (InterruptedException e) {
-							// TODO Auto-generated catch block
-							e.printStackTrace();
-						}
 					}
 					else
 					{//System.out.println("thread "+ID+"  get packet");
@@ -696,17 +672,6 @@ public class Receiver
 						if(packets_pool!=null)
 							packets_pool.add(packet.getData());
 					}
-					
-					if(val==1)
-						throw new IOException();
-					
-					 final long INTERVAL = 1000;
-					    long start = System.nanoTime();
-					    long end=0;
-					    do{
-					        end = System.nanoTime();
-					    }while(start + INTERVAL >= end);
-					
 					
 				} catch (IOException e) 
 		        {

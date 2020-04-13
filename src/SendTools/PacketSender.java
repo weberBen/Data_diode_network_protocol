@@ -39,6 +39,9 @@ public class PacketSender extends DatagramSender
 	public PacketSender(InputStream stream, long length_data, int subpacket_size, DataType type, Metadata metadata)
 	{	
 		//check parameters
+		if(type==null || stream==null)
+			throw new IllegalArgumentException();
+		
 		if((type.hasMetadata() && metadata==null) || (!type.hasMetadata() && metadata!=null)
 			|| !type.metadataClassEqual(metadata))
 		{

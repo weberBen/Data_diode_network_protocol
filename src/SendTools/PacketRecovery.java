@@ -10,11 +10,12 @@ import java.io.SequenceInputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.List;
 
+import EnvVariables.Environment;
 import Exceptions.InvalidPacketStreamException;
 import Metadata.Metadata;
 import PacketConstructor.Manifest;
-import PacketConstructor.PacketBuilder;
 import PacketConstructor.PacketHeader;
 import PacketConstructor.PacketType;
 import Metadata.DataType;
@@ -34,10 +35,10 @@ public class PacketRecovery extends DatagramSender
 	private RandomAccessInputStream metadata_stream;
 	private RandomAccessInputStream current_stream;
 	private int subpacket_size;
-	private PacketBuilder metadata_builder;
-	private PacketBuilder data_builder;
+	private InputStreamBuilder metadata_builder;
+	private InputStreamBuilder data_builder;
 	private MissingPackets missing_packets;
-	public ArrayList<Range> current_packets_list;
+	public List<Range> current_packets_list;
 	private int index_packets_list;
 	private long cursor_range;
 	private PacketType current_type;
@@ -52,8 +53,8 @@ public class PacketRecovery extends DatagramSender
 	public PacketRecovery(long id, RandomAccessInputStream data_to_resend, int subpacket_size, Metadata metadata_to_resend, MissingPackets missing_packets)
 	{	
 		//check parameters
-		ArrayList<Range> meta_list;
-		ArrayList<Range> data_list;
+		List<Range> meta_list;
+		List<Range> data_list;
 		
 		if(missing_packets.getMetadataPackets()!=null && missing_packets.getMetadataPackets().size()==0)
 		{
@@ -130,7 +131,8 @@ public class PacketRecovery extends DatagramSender
 			this.metadata_builder = null;
 		}else
 		{
-			this.metadata_builder = new PacketBuilder(metadata_stream, subpacket_size, 1, PacketType.Metadata());
+			
+			this.metadata_builder = new InputStreamBuilder(manifest, metadata_stream, subpacket_size, Environment.PACKET_START_INDEX, PacketType.Metadata());
 		}
 		
 		if(data_stream==null)
@@ -139,7 +141,7 @@ public class PacketRecovery extends DatagramSender
 			
 		}else
 		{
-			this.data_builder = new PacketBuilder(data_stream, subpacket_size, 1, PacketType.Data());
+			this.data_builder = new InputStreamBuilder(manifest, data_stream, subpacket_size, Environment.PACKET_START_INDEX, PacketType.Data());
 		}
 	}
 	
@@ -154,7 +156,7 @@ public class PacketRecovery extends DatagramSender
 			InputStream tmp = new ByteArrayInputStream(data);
 			
 			//create header
-			PacketBuilder builder = new PacketBuilder(tmp, data.length, 0, PacketType.Metadata());
+			InputStreamBuilder builder = new InputStreamBuilder(manifest, tmp, data.length, Environment.PACKET_START_INDEX, PacketType.Manifest());
 			
 			//get output
 			byte[] output = builder.getNextPacket();//only one packet

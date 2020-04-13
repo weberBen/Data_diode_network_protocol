@@ -7,6 +7,7 @@ import javax.xml.bind.annotation.XmlRootElement;
 public class SenderParms
 {
 	private int mmu_packet_length;
+	private long rate_nanosecond;
 	private String in_path;
 	
 	protected SenderParms() {}
@@ -31,5 +32,16 @@ public class SenderParms
 	public String getInPath()
 	{
 		return in_path;
+	}
+	
+	@XmlElement(name = "SendRate")
+	public void setSendRate(long rate)
+	{
+		this.rate_nanosecond = rate;
+	}
+	
+	public long getSendRate()
+	{
+		return rate_nanosecond;
 	}
 }

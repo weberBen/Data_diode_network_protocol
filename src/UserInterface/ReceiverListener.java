@@ -19,11 +19,9 @@ public class ReceiverListener
 	public final ChangeListener listener;
 	private LocalDateTime datetime;
 	
-	public final ArrayList<ConcurrentLinkedQueue<byte[]>> list;
-	
 	
 	public ReceiverListener (NetworkAddress address, int nb_packet_hold, int nb_packet_block,  int buffer_size_file, 
-			long timeout_ns, ChangeListener listener, ArrayList<ConcurrentLinkedQueue<byte[]>> list)
+			long timeout_ns, ChangeListener listener)
 	{
 		this.address = address;
 		this.nbPacketHold = nb_packet_hold;
@@ -31,8 +29,6 @@ public class ReceiverListener
 		this.bufferSizeFile = buffer_size_file;
 		this.timeoutNanos = timeout_ns;
 		this.listener = listener;
-		
-		this.list = list;
 	}
 	
 	public void setDatetime()

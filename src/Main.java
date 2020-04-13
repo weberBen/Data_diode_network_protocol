@@ -122,23 +122,80 @@ public class Main
 	private static final String work_directory = System.getProperty("user.dir") + File.separator + "test";
 	private static final byte[] init_data = new byte[nb_packet*block_size+3];
 	
-	
-	public static void main142(String[] args) throws Exception
+	public static ArrayList blockShuffle(ArrayList list, int block)
 	{
-		LinkedBlockingQueue<Integer> list = new LinkedBlockingQueue<Integer>();
+		int previous = 0;
+		int next=0;
 		
-		try
+		while(previous<list.size())
 		{
-			Integer l = list.poll(5, TimeUnit.SECONDS);
-			if(l== null)
-				System.out.println("oki");
-		}catch(InterruptedException  e)
-		{
-			e.printStackTrace();
+			next = block; //(int)(Math.random()*block);
+			int end = Math.min(previous+next, list.size());
+			int start = previous;
+			System.out.println("from="+start+"  to "+end);
+			for(int i=start; i<end; i++)
+			{
+				int pos = (int)(Math.random()*(end-start) + start);
+				Object o = list.get(i);
+				list.set(i, list.get(pos));
+				list.set(pos, o);
+				
+			}
+			
+			previous += next;
+			if(previous>255)
+				break;
 		}
+		
+		return list;
 	}
 	
-	public static void main(String[] args) throws Exception
+	public static void main(String[] agrs) throws Exception
+	{
+		System.out.println("sork_dir="+work_directory);
+		Parms.load();
+		Parms.instance().getNetworkConfig().setIp("192.168.0.132");
+		Parms.instance().getNetworkConfig().setPorts(new int[] {1652, 1653});
+		
+		Parms.instance().sender().setSendRate(10000);
+		Parms.instance().sender().setMMUPacketLength(1500);
+		Parms.instance().receiver().setWorkspace(work_directory);
+		Parms.instance().receiver().setOutPath(work_directory);
+		
+		Parms.save();
+		
+		int nb_packet_block = nb_packet_to_hold;
+		int buffer_file_size = 8192;
+		long timeout = 10000000000L;//10s
+		
+		ReceiverInterface ritf = new ReceiverInterface(Parms.instance().getNetworkConfig(), nb_packet_to_hold, nb_packet_block,
+				buffer_file_size, timeout);
+		ritf.start();
+	}
+	
+	public static void main2(String[] args) throws Exception
+	{
+		System.out.println("sork_dir="+work_directory);
+		Parms.load();
+		Parms.instance().getNetworkConfig().setIp("192.168.0.132");
+		Parms.instance().getNetworkConfig().setPorts(new int[] {1652,1653});
+		
+		Parms.instance().sender().setSendRate(10000);
+		Parms.instance().sender().setMMUPacketLength(1500);
+		Parms.instance().receiver().setWorkspace(work_directory);
+		Parms.instance().receiver().setOutPath(work_directory);
+		
+		Parms.save();
+		
+		
+		Sender sender = new Sender();
+		
+		sender.send("test");
+		
+		sender.close();
+	}
+	
+	public static void main4785(String[] args) throws Exception
 	{
 		Parms.load();
 		int nb_packet_block = nb_packet_to_hold;
@@ -173,7 +230,7 @@ public class Main
 		
 		
 		
-		int number_threads = 2;
+		int number_threads = 5;
 		
 		int[] ports = new int[number_threads];
 		for(int i=0; i<number_threads; i++)
@@ -247,7 +304,8 @@ public class Main
 
 		System.out.println("start");
 		
-		ReceiverInterface ritf = new ReceiverInterface(Parms.instance().getNetworkConfig(), nb_packet_to_hold, nb_packet_block, buffer_file_size, timeout, sub_lists);
+		ReceiverInterface ritf = new ReceiverInterface(Parms.instance().getNetworkConfig(), nb_packet_to_hold, nb_packet_block, buffer_file_size,
+				timeout);
 		ritf.start();
 		
 		
@@ -435,10 +493,12 @@ public class Main
 
 		System.out.println("start");
 		
-		ReceiverInterface ritf = new ReceiverInterface(Parms.instance().getNetworkConfig(), nb_packet_to_hold, nb_packet_block, buffer_file_size, timeout, sub_lists);
+		ReceiverInterface ritf = new ReceiverInterface(Parms.instance().getNetworkConfig(), nb_packet_to_hold, nb_packet_block, 
+				buffer_file_size, timeout);
 		ritf.start();
 	}
 	
+	/*
 	public static void main55(String[] args) throws Exception
 	{
 		Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
@@ -503,10 +563,6 @@ public class Main
 	
 	public static void main7(String[] args) throws Exception
 	{
-		/*Parms.load();
-		UserMenu menu = new UserMenu();
-		menu.show();
-		//Parms.save();*/
 		
 		String msg = (String) Toolkit.getDefaultToolkit()
                 .getSystemClipboard().getData(DataFlavor.stringFlavor);
@@ -521,130 +577,6 @@ public class Main
 		BufferedImage bufferedImage = Tools.getBufferedImage(image);
 		byte[] imageBytes = ((DataBufferByte) bufferedImage.getRaster().getDataBuffer()).getData();
 		System.in.read();
-	}
-	public static void main22(String[] args) throws JAXBException, UnknownHostException
-	{
-		/*Parms parms = new Parms();
-		
-		parms.setBufferFileSize(12);
-		parms.setInPath("test");
-		*/
-		NetworkAddress address = new NetworkAddress("127.0.0.1", new int[] {1,2,3, 4});
-		
-		String filename = work_directory + File.separator + "test.xml";
-		Parms.load();
-		Parms parms = Parms.instance();
-		
-		System.out.println(parms.getBufferFileSize());
-		System.out.println(parms.getOutPath());
-		System.out.println(parms.getNetworkConfig());
-		/*parms.setBufferFileSize(1258);
-		parms.setInPath("oki oki");
-		parms.setNetworkConfig(address);
-		
-		parms.save();*/
-		/*File file = new File(filename);
-	    JAXBContext jaxbContext = JAXBContext.newInstance(Parms.class);
-
-	    Marshaller jaxbMarshaller = jaxbContext.createMarshaller();
-
-	    jaxbMarshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, true);
-	    jaxbMarshaller.marshal(parms, file);*/
-	    //jaxbMarshaller.marshal(item3, System.out);
-	}
-	
-	public static void main1(String[] args)
-	{
-		MenuItemInterface myInterface1 = (input) -> { 
-			
-			String[] vals = input.split(" ");
-			ArrayList<Integer> index = new ArrayList<Integer>();
-			for(String val : vals)
-			{
-				System.out.println("value="+val);
-				System.out.println("length="+val.length());
-				try
-				{
-					int i = Integer.parseInt(val);
-					if(i<=0 || i>65535)
-						throw new IllegalArgumentException();
-					
-					index.add(i);
-				}catch(NumberFormatException e)
-				{
-					throw new IllegalArgumentException();
-				}
-			}
-			
-			System.out.print("list=");
-			System.out.print(index);
-			
-		};
-		
-		MenuItemInterface myInterface2 = (input) -> { 
-			
-			System.out.println("item 2 line read="+input);
-			
-		};
-		
-		MenuItemInterface myInterface3 = (input) -> { 
-			
-			System.out.println("item 3 line read="+input);
-			
-		};
-		
-		MenuItemInterface myInterface4 = (input) -> { 
-			
-			System.out.println("item 4 line read="+input);
-			
-		};
-		
-		MenuItem item1 = new MenuItem("Réglagle IP", "Séparer les ports par un espace", "une description", myInterface1);
-		MenuItem item2 = new MenuItem("Item 2", "aucune info 2", "une description 2", myInterface2);
-		
-		Menu submenu = new Menu("sub Menu et oui ok", "info sub menu", "descritpion sub menu");
-		submenu.addItem(item1);
-		submenu.addItem(item2);
-		
-		MenuItem item3 = new MenuItem("Item 3", "aucune info 3", "une description 3", myInterface3);
-		MenuItem item4 = new MenuItem("Item 4", "aucune info 4", "une description 4", myInterface4);
-		
-		Menu menu = new Menu("M%enu", "indo menu", "desc menu");
-		menu.addItem(item3);
-		menu.addItem(submenu);
-		menu.addItem(item4);
-		menu.show();
-		//System.out.println(menu.toString('*', 0));
-	}
-	
-	
-	
-	public static ArrayList blockShuffle(ArrayList list, int block)
-	{
-		int previous = 0;
-		int next=0;
-		
-		while(previous<list.size())
-		{
-			next = block; //(int)(Math.random()*block);
-			int end = Math.min(previous+next, list.size());
-			int start = previous;
-			System.out.println("from="+start+"  to "+end);
-			for(int i=start; i<end; i++)
-			{
-				int pos = (int)(Math.random()*(end-start) + start);
-				Object o = list.get(i);
-				list.set(i, list.get(pos));
-				list.set(pos, o);
-				
-			}
-			
-			previous += next;
-			if(previous>255)
-				break;
-		}
-		
-		return list;
 	}
 	
 	
@@ -868,8 +800,8 @@ public class Main
 		{
 			//System.out.println("i="+i);
 			packet = list.get(i);
-			/*if(i==0 || i==2 || i==4|| i==5)
-				continue;*/
+			//if(i==0 || i==2 || i==4|| i==5)
+				//continue;
 			//if(!stream.add(packet.getHeader(), packet.getBuffer(), true))
 				//System.out.println("NOT ADDED");
 			
@@ -887,13 +819,7 @@ public class Main
 	public static void main0(String[] args) throws Exception
 	{
 		//initialization
-			String work_directory = "/home/benjamin/eclipse-workspace/UDP/test";
-			
-			/*if(args.length==0)
-			{
-				System.out.println("wrong arguments");
-				return;
-			}*/
+			String work_directory = "/home/benjamin/eclipse-workspace/UDP/test
 			
 			
 			int nb_packet = 10;
@@ -955,7 +881,7 @@ public class Main
 				
 				packet = list.get(i);
 				/*if(i==0 || i==2 || i==4|| i==5)
-					continue;*/
+					//continue;
 				//if(!stream.add(packet.getHeader(), packet.getBuffer(), true))
 					//System.out.println("NOT ADDED");
 				
@@ -986,12 +912,6 @@ public class Main
 	{
 		//initialization
 		String work_directory = "/home/benjamin/eclipse-workspace/UDP/test";
-		
-		/*if(args.length==0)
-		{
-			System.out.println("wrong arguments");
-			return;
-		}*/
 		
 		
 		int nb_packet = 100000;
@@ -1058,8 +978,6 @@ public class Main
 		{
 			
 			packet = list.get(i);
-			/*if(i==0 || i==46 || i==47 || i==49 || i==51 || i==101 || i==105)
-				continue;*/
 			//if(!stream.add(packet.getHeader(), packet.getBuffer(), true))
 				//System.out.println("NOT ADDED");
 			
@@ -1119,7 +1037,7 @@ public class Main
 			packet = list.get(i);
 			if(!stream.add(packet.getBuffer()))
 				System.out.println("NOT ADDED");
-		}*/
+		}
 		
 		stream.flush();
 		//stream.test();
@@ -1757,7 +1675,7 @@ public class Main
 		PacketBuilder.writeDeletePacket(checksum_filename, header_filename, data_filename, output, 5);
 		
 		PacketHeader header = PacketBuilder.checkPacket(checksum_filename, header_filename, data_filename, 5);
-		System.out.println(header);*/
+		System.out.println(header);
 		
 	}
 	
@@ -1776,7 +1694,7 @@ public class Main
 		
 		ArrayList<Range> missing_data = null;/*new ArrayList<Range>();
 		missing_data.add(new Range(2,3));
-		missing_data.add(new Range(5,7));*/
+		missing_data.add(new Range(5,7));
 		
 		stream.sendMissing(87828912387177L, msg, new MissingPackets(missing_meta, missing_data));
 		
@@ -1793,7 +1711,7 @@ public class Main
 		Sender stream = new Sender(ip, port, 1);
 		/*
 		String msg = "salut toi comment tu va et moi ?";
-		stream.send(msg, 5);*/
+		stream.send(msg, 5);
 		
 		//File file = new File("/home/benjamin/Téléchargements/11_IntroSockets.pdf");
 		File file = new File("/home/benjamin/Téléchargements/ddddd.avi");
@@ -1873,6 +1791,6 @@ public class Main
 			}
 			
 		}
-	}
+	}*/
 	
 }

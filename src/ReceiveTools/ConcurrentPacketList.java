@@ -14,6 +14,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -32,6 +33,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import EnvVariables.Environment;
 import EnvVariables.Parms;
 import Exceptions.EndOfPacketReassemblingException;
+import Exceptions.IncompleteContentException;
 import Exceptions.InvalidPacketStreamException;
 import Exceptions.ReassemblingException;
 import PacketConstructor.Manifest;
@@ -65,7 +67,8 @@ public class ConcurrentPacketList
 		if(work_directory==null || manifest==null || info==null || number_packet_hold<=0 || nb_packet_block<=0 || buffer_size_file<=0 || timeout_nanosecond<=0)
 			throw new IllegalArgumentException();
 
-		
+		System.out.println("manifest="+manifest);
+		System.out.println("manifest type="+manifest.type);
 		if(manifest.type.isInMemory())
 		{
 			this.manager = new InMemoryPacketManager(manifest);
@@ -113,7 +116,7 @@ public class ConcurrentPacketList
 		stop.set(true);
 	}
 	
-	public void reassemble() throws IOException, EndOfPacketReassemblingException, TimeoutException, ReassemblingException, InterruptedException
+	public void reassemble() throws IOException, EndOfPacketReassemblingException, TimeoutException, ReassemblingException, InterruptedException, IncompleteContentException
 	{
 		if(is_closed.get())
 			return;
@@ -121,14 +124,26 @@ public class ConcurrentPacketList
 		if(!reassembling.compareAndSet(false, true))
 			return;
 		
+		long count = 0;long size;
 		Container container;
 		while(!manager.isComplete() && !stop.get())
 		{	
+			//if((size=queue.size())>10)
+			//System.out.println("** list size="+(queue.size())+"   | count="+count);
 			container = queue.poll(timeout_nanosecond,  TimeUnit.NANOSECONDS);
 			if(container==null)
 			{//System.out.println("container null");
+				System.out.println("----------------");
+				System.out.println("Number missing pckets="+manager.getNumberMissingPacket());
+				System.out.println("missing packet data=");
+				Iterator<Range> missing_list = manager.getMissingPacket(PacketType.TYPE_DATA);
+				while(missing_list.hasNext())
+				{
+					System.out.println("\t"+missing_list.next());
+				}
+				System.out.println("----------------");
 				throw new TimeoutException();
-			}
+			}count++;
 			
 			//System.out.println("\tadd type="+container.header.getType()+", index="+container.header.getIndex());
 			try
@@ -147,7 +162,22 @@ public class ConcurrentPacketList
 		
 		if(manager.isComplete())
 		{
-			manager.update();
+			java.util.List<PacketType> types = manager.update();
+			if(types!=null)
+			{
+				System.out.println("INCOMPLETE TYPES=");
+				for(PacketType type : types)
+				{
+					System.out.println("\t"+type);
+				}
+			}
+			
+			System.out.println("MISSING PACKET=");
+			Iterator<Range> missings = manager.getMissingPacket(PacketType.TYPE_DATA);
+			while(missings.hasNext())
+			{
+				System.out.println("\t"+missings.next());
+			}
 			reassembling.set(false);
 			if(!manager.isReassemblyFinished())
 			{
@@ -184,7 +214,7 @@ public class ConcurrentPacketList
 		if(packet.getHeader().getStreamId()!=manifest.id)
 			return false;
 		
-		return add(packet.getHeader(), packet.getBuffer());
+		return add(packet.getHeader(), packet.getBuffer().clone());
 	}
 	
 	
@@ -224,7 +254,7 @@ public class ConcurrentPacketList
 		return manager.getManifest();
 	}
 	
-	public PacketContent getContent(int type_id)
+	public PacketContent getContent(int type_id) throws IncompleteContentException
 	{
 		return manager.getContent(type_id);
 	}

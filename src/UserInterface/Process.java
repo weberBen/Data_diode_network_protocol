@@ -17,7 +17,7 @@ public abstract class Process
 	public abstract void stop();
 }
 
-class Start extends Process
+/*class Start extends Process
 {
 	private HashMap<String, Process> processus;
 	
@@ -32,4 +32,4 @@ class Start extends Process
 	
 	public abstract void start()
 	public abstract void stop();
-}
+}*/
