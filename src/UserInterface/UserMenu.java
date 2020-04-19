@@ -430,25 +430,20 @@ public class UserMenu
 		{
 			public void applyChange(String line) throws IllegalArgumentException, SaveObjectException
 			{
-				String[] tmp = line.split(" ");
-				int[] ports = new int[tmp.length];
+				int port;
 				
-				for(int i=0; i<tmp.length; i++)
+				try
 				{
-					String t = tmp[i];
-					try
-					{
-						ports[i] = Integer.parseInt(t);
-						if(!Tools.isCorrectIpPort(ports[i]))
-							throw new NumberFormatException("<<"+t+">>"+" element at position "+i+" is not a valid ip port");
-						
-					}catch(NumberFormatException e)
-					{
-						throw new NumberFormatException("<<"+t+">>"+" element at position "+i+" is not an integer");
-					}
+					port = Integer.parseInt(line);
+					if(!Tools.isCorrectIpPort(port))
+						throw new NumberFormatException("<<"+line+">> is not a valid ip port");
+					
+				}catch(NumberFormatException e)
+				{
+					throw new NumberFormatException("<<"+line+">>"+" is not an integer");
 				}
 				
-				Parms.instance().getNetworkConfig().setPorts(ports);
+				Parms.instance().getNetworkConfig().setPort(port);
 				
 				try
 				{
@@ -462,24 +457,9 @@ public class UserMenu
 			
 			public String prevValue()
 			{
-				int[] ports = Parms.instance().getNetworkConfig().getPorts();
+				int port = Parms.instance().getNetworkConfig().getPort();
 				
-				StringBuffer output = new StringBuffer();
-				output.append('[');
-				if(ports==null)
-				{
-					output.append(' ');
-				}else
-				{
-					for(int i=0; i<ports.length-1; i++)
-					{
-						output.append(""+ports[i]+" ");
-					}
-					output.append(""+ports[ports.length-1]);
-				}
-				output.append(']');
-				
-				return output.toString();
+				return ""+port;
 			}
 		};
 		

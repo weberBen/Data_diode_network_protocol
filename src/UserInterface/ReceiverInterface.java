@@ -17,14 +17,14 @@ public class ReceiverInterface
 {
 	private Receiver receiver;
 	private Scanner scanner;
-	private NetworkAddress networkConf;
+	private NetworkAddress[] networkConf;
 	private int nb_packet_to_hold;
 	private int nb_packet_block;
 	private int buffer_file_size;
 	private long timeout;
 	private static int THREAD_COUNT = 0;
 	
-	public ReceiverInterface(NetworkAddress networkConf, int nb_packet_to_hold, int nb_packet_block, int buffer_file_size, long timeout)
+	public ReceiverInterface(NetworkAddress[] networkConf, int nb_packet_to_hold, int nb_packet_block, int buffer_file_size, long timeout)
 	{
 		this.receiver = new Receiver();
 		this.scanner = new Scanner(System.in);
@@ -80,7 +80,7 @@ public class ReceiverInterface
 						evt.exception.printStackTrace();
 						try {
 							receiver.close();
-						} catch (IOException e) {
+						} catch (Exception e) {
 							// TODO Auto-generated catch block
 							e.printStackTrace();
 						}
@@ -102,7 +102,14 @@ public class ReceiverInterface
 					ReceivedEvent evt = (ReceivedEvent)rep_event;
 					if(evt.exception!=null)
 					{
-						System.out.println("received object from stream id="+evt.manifest.id+" equals="+evt.exception);
+						if(evt.manifest==null)
+						{
+							System.out.println("received object from stream , exception="+evt.exception);
+						}else
+						{
+							System.out.println("received object from stream id="+evt.manifest.id+" equals="+evt.exception);
+						}
+						
 						evt.exception.printStackTrace();
 					}else
 					{
@@ -119,7 +126,7 @@ public class ReceiverInterface
 					
 					try {
 						receiver.close();
-					} catch (IOException e) {
+					} catch (Exception e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
 					}

@@ -174,6 +174,8 @@ public class InMemoryPacketManager extends PacketManager
 	
 	public void flush() {}
 	
+	public void clear() throws IOException {}
+	
 	public Iterator<Range> getMissingPacket(int type_id)
 	{
 		return (new MissingPacketIterator(type_id).iterator());

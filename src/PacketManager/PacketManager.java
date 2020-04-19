@@ -6,8 +6,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
+import Exceptions.EndOfPacketReassemblingException;
 import Exceptions.IncompleteContentException;
+import Exceptions.ReassemblingException;
 import PacketConstructor.Manifest;
 
 import PacketConstructor.PacketBufferInfo;
@@ -38,6 +42,22 @@ public abstract class PacketManager
 			tmp.put(allowed_type[i].getId(), i);
 		}
 		mapTypeIndex = Collections.unmodifiableMap(tmp);
+	}
+	
+	public static PacketManager getManager(String work_directory, Manifest manifest, PacketBufferInfo info, int number_packet_hold, int nb_packet_block, int buffer_size_file, long timeout_nanosecond) throws IOException
+	{
+		if(work_directory==null || manifest==null || info==null || number_packet_hold<=0 || nb_packet_block<=0 || buffer_size_file<=0 || timeout_nanosecond<=0)
+			throw new IllegalArgumentException();
+
+		
+		if(manifest.type.isInMemory())
+		{
+			return new InMemoryPacketManager(manifest);
+		}
+		else
+		{
+			return new InFilePacketManager(work_directory, manifest, number_packet_hold, nb_packet_block);
+		}
 	}
 	
 	public PacketManager(Manifest manifest)
@@ -136,9 +156,11 @@ public abstract class PacketManager
 	public abstract long length();
 	public abstract String getWorkDirectory();
 	public abstract java.util.List<PacketType> update() throws IOException;
+	public abstract void clear() throws IOException;
 	
 	public Manifest getManifest()
 	{
 		return manifest;
 	}
+	
 }

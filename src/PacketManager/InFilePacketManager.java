@@ -451,6 +451,18 @@ public class InFilePacketManager extends PacketManager
 			
 	}
 	
+	public void clear() throws IOException
+	{
+		close(false);
+		
+		File dir = new File(work_dir);
+		if(dir.exists())
+		{
+			Tools.purgeDirectory(dir);
+			dir.delete();
+		}
+	}
+	
 	public java.util.List<PacketType> update() throws IOException
 	{
 		ArrayList<PacketType> output = new ArrayList<PacketType>();

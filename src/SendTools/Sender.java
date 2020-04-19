@@ -77,12 +77,12 @@ public class Sender
 	{
 		DatagramPacket dp ;
 		byte[] data;
-		int[] ports = address.getPorts();
+		int port = address.getPort();
 		InetAddress ip = address.getIp();
 		
 		
 		data = stream.getPacket();
-		dp = new DatagramPacket(data, data.length, ip, ports[0]);
+		dp = new DatagramPacket(data, data.length, ip, port);
 		socket.send(dp);//send manifest
 		
 		Thread.sleep(6000);
@@ -96,12 +96,10 @@ public class Sender
 		{
 			//System.out.println("loop...");
 			
-			if(index>=address.getPorts().length)
-				index = 0;
+			if(count%1000==0)
+				System.out.println("packet "+count+" send");
 			
-			System.out.println("packet "+count+" send");
-			
-			dp = new DatagramPacket(data, data.length, ip, ports[index]);
+			dp = new DatagramPacket(data, data.length, ip, port);
 			index++;
 			socket.send(dp);
 				

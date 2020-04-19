@@ -150,12 +150,148 @@ public class Main
 		return list;
 	}
 	
-	public static void main(String[] agrs) throws Exception
+	private static class Container
+	{
+		public final PacketHeader header;
+		public final byte[] buffer;
+		
+		public Container(PacketHeader header, byte[] buffer)
+		{
+			this.header = header;
+			this.buffer = buffer;
+		}
+	}
+	
+	private static class RRR implements Runnable
+	{
+		private StringBuffer string_buffer;
+		private volatile boolean stop;
+		
+		public RRR(StringBuffer string_buffer)
+		{
+			this.string_buffer = string_buffer;
+		}
+		
+		public void stop()
+		{
+			stop = false;
+		}
+		
+		public void run()
+		{
+			while(!stop)
+			{
+				
+			}
+		}
+	}
+	
+	public static void main111(String[] agrs) throws Exception
+	{
+		System.out.println("oki");
+	}
+	
+	public static void main121(String[] agrs) throws Exception
 	{
 		System.out.println("sork_dir="+work_directory);
 		Parms.load();
-		Parms.instance().getNetworkConfig().setIp("192.168.0.132");
-		Parms.instance().getNetworkConfig().setPorts(new int[] {1652, 1653});
+		Parms.instance().getNetworkConfig().setIp("169.254.8.186");
+		Parms.instance().getNetworkConfig().setPort(1652);
+		
+		long count=0;
+		
+		ConcurrentLinkedQueue<byte[]> list_array = new ConcurrentLinkedQueue<byte[]>();
+		LinkedBlockingQueue<byte[]> queue = new LinkedBlockingQueue<byte[]> ();
+		
+		RRR r = new RRR(null);
+		
+		Thread t = new Thread(r);
+        t.setDaemon(true);//stop at the end of the JVM
+        t.start(); 
+
+        
+		DatagramSocket socket = new DatagramSocket(1652, Parms.instance().getNetworkConfig().getIp());
+		
+		File file = new File(work_directory+File.separator+"tt");
+		FileOutputStream fos = new FileOutputStream(file, false);
+		BufferedOutputStream  stream = new BufferedOutputStream(fos, 8192);
+		
+		byte[] buffer = new byte[1500];
+		
+		DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+		
+		socket.receive(packet);
+		
+		System.out.println("wait manifest");
+		Manifest manifest = PacketReader.getManifest(packet.getData().clone());
+		System.out.println("checmusm="+Checksum.LENGTH);
+		System.out.println("header="+PacketHeader.BYTES);
+		
+		System.out.println("manifest="+manifest);
+		
+		socket.setSoTimeout(10000);
+		PacketBufferInfo info = new PacketBufferInfo(manifest.blockSize);
+		
+		/*for(int i=0; i<10000; i++)
+		{
+			list_array.add(new byte[1400]);
+		}*/
+		byte b;
+		while(true)
+		{
+			//buffer = list_array.poll();
+			packet.setData(buffer);
+			packet.setLength(buffer.length);
+			
+			try
+			{
+				socket.receive(packet);
+				/*for(int i=0; i<buffer.length; i++)
+				{
+					b = buffer[i];
+				}*/
+				//byte[] buff = Arrays.copyOfRange(buffer, packet.getOffset(), packet.getLength());
+				//System.out.println("offset="+packet.getOffset()+"  - length="+packet.getLength());
+				/*PacketReader packetReader =  new PacketReader(info);
+				if(!packetReader.depack(buffer))
+				{System.out.println("total packet="+count);
+					r.stop();
+					throw new InvalidPacketStreamException();
+				}
+				
+				Container container = new Container(packetReader.getHeader(), packetReader.getBuffer());*/
+				queue.add(buffer);
+				
+				//stream.write(packet.getData().clone(), 0, packet.getLength());
+				count++;
+				/*if(count%1000==0)
+					System.out.println("packet "+count+" received"+ "  | size="+packet.getLength());*/
+			}catch(IOException e)
+			{
+				e.printStackTrace();
+				break;
+			}
+		}
+		r.stop();
+		stream.flush();
+		
+		socket.close();
+		stream.close();
+		
+		int size=PacketBufferInfo.getSize(manifest.blockSize);
+		System.out.println("packet size="+size);
+		//System.out.println("is equals="+(236000*size==file.length()));
+		System.out.println("total packet="+count);
+		System.out.println("file size="+file.length());
+		System.out.println("end");
+	}
+	
+	public static void main (String[] agrs) throws Exception
+	{
+		System.out.println("sork_dir="+work_directory);
+		Parms.load();
+		Parms.instance().getNetworkConfig().setIp("169.254.8.186");
+		Parms.instance().getNetworkConfig().setPort(1652);
 		
 		Parms.instance().sender().setSendRate(10000);
 		Parms.instance().sender().setMMUPacketLength(1500);
@@ -168,19 +304,19 @@ public class Main
 		int buffer_file_size = 8192;
 		long timeout = 10000000000L;//10s
 		
-		ReceiverInterface ritf = new ReceiverInterface(Parms.instance().getNetworkConfig(), nb_packet_to_hold, nb_packet_block,
+		ReceiverInterface ritf = new ReceiverInterface(new NetworkAddress[] {Parms.instance().getNetworkConfig()}, nb_packet_to_hold, nb_packet_block,
 				buffer_file_size, timeout);
 		ritf.start();
 	}
 	
-	public static void main2(String[] args) throws Exception
+	public static void mai11n(String[] args) throws Exception
 	{
 		System.out.println("sork_dir="+work_directory);
 		Parms.load();
-		Parms.instance().getNetworkConfig().setIp("192.168.0.132");
-		Parms.instance().getNetworkConfig().setPorts(new int[] {1652,1653});
+		Parms.instance().getNetworkConfig().setIp("169.254.9.13");
+		Parms.instance().getNetworkConfig().setPort(1652);
 		
-		Parms.instance().sender().setSendRate(10000);
+		Parms.instance().sender().setSendRate(20000);
 		Parms.instance().sender().setMMUPacketLength(1500);
 		Parms.instance().receiver().setWorkspace(work_directory);
 		Parms.instance().receiver().setOutPath(work_directory);
@@ -190,7 +326,7 @@ public class Main
 		
 		Sender sender = new Sender();
 		
-		sender.send("test");
+		sender.send(new File("/home/benjamin/eclipse-workspace/Data_diode_network_protocol/test/zipped.tar.gz"));
 		
 		sender.close();
 	}
@@ -232,12 +368,8 @@ public class Main
 		
 		int number_threads = 5;
 		
-		int[] ports = new int[number_threads];
-		for(int i=0; i<number_threads; i++)
-		{
-			ports[i] = i;
-		}
-		Parms.instance().getNetworkConfig().setPorts(ports);
+		int port = 2;
+		Parms.instance().getNetworkConfig().setPort(port);
 		Parms.instance().receiver().setOutPath(work_directory);
 		Parms.instance().receiver().setWorkspace(work_directory);
 		
@@ -304,7 +436,7 @@ public class Main
 
 		System.out.println("start");
 		
-		ReceiverInterface ritf = new ReceiverInterface(Parms.instance().getNetworkConfig(), nb_packet_to_hold, nb_packet_block, buffer_file_size,
+		ReceiverInterface ritf = new ReceiverInterface(new NetworkAddress[] {Parms.instance().getNetworkConfig()}, nb_packet_to_hold, nb_packet_block, buffer_file_size,
 				timeout);
 		ritf.start();
 		
@@ -493,7 +625,7 @@ public class Main
 
 		System.out.println("start");
 		
-		ReceiverInterface ritf = new ReceiverInterface(Parms.instance().getNetworkConfig(), nb_packet_to_hold, nb_packet_block, 
+		ReceiverInterface ritf = new ReceiverInterface(new NetworkAddress[] {Parms.instance().getNetworkConfig()}, nb_packet_to_hold, nb_packet_block, 
 				buffer_file_size, timeout);
 		ritf.start();
 	}

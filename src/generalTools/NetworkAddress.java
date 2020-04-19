@@ -19,35 +19,27 @@ public class NetworkAddress
 	@XmlElement(name = "IntAdrress")
 	@XmlJavaTypeAdapter(InetAddressAdapter.class)
 	private InetAddress intAdrress;
-	private int[] portList;
+	private int port;
 	
 	public NetworkAddress() {}
 	
-	public NetworkAddress(InetAddress ip, int[] port_list)
+	public NetworkAddress(InetAddress ip, int port)
 	{
-		for(int i=0; i<port_list.length; i++)
-		{
-			for(int j=0; j<port_list.length; j++)
-			{
-				if(j==i)
-					continue;
-				if(port_list[i]==port_list[j])
-					throw new IllegalArgumentException();
-			}
-		}
+		if(port<0 || port>65535)
+			throw new IllegalArgumentException();
 		
 		this.intAdrress = ip;
-		this.portList = port_list;
+		this.port = port;
 	}
 	
-	public NetworkAddress(String ip, int[] port_list) throws UnknownHostException
+	public NetworkAddress(String ip, int port) throws UnknownHostException
 	{
-		this(InetAddress.getByName(ip), port_list);
+		this(InetAddress.getByName(ip), port);
 	}
 	
-	public NetworkAddress(byte[] ip, int[] port_list) throws UnknownHostException
+	public NetworkAddress(byte[] ip, int port) throws UnknownHostException
 	{
-		this(InetAddress.getByAddress(ip), port_list);
+		this(InetAddress.getByAddress(ip), port);
 	}
 	
 	@XmlTransient
@@ -74,35 +66,24 @@ public class NetworkAddress
 	}
 	
 	@XmlElement(name = "Ports")
-	public void setPorts(int[] ports)
+	public void setPort(int port)
 	{
-		this.portList = ports;
+		if(port<0 || port>65535)
+			throw new IllegalArgumentException();
+		
+		this.port = port;
 	}
 	
-	public int[] getPorts()
+	public int getPort()
 	{
-		return portList;
+		return port;
 	}
 	
 	
 	@Override
 	public String toString()
 	{
-		String ports = "[";
-		if(portList.length!=0)
-		{
-			for(int i=0; i<portList.length-1; i++)
-			{
-				ports+=portList[i] + ",";
-			}
-			ports+=portList[portList.length-1];
-		}else
-		{
-			ports+=" ";
-		}
-		ports+="]";
-		
-		return "NetworkConfig(ip="+intAdrress.getHostAddress()+", ports="+ports+")";
+		return "NetworkConfig(ip="+intAdrress.getHostAddress()+", port="+port+")";
 	}
 	
 	@Override
@@ -117,7 +98,7 @@ public class NetworkAddress
 		
 		NetworkAddress adrs = (NetworkAddress)o;
 		
-		return intAdrress.equals(adrs.intAdrress) && Arrays.equals(portList, adrs.portList);
+		return intAdrress.equals(adrs.intAdrress) && port==adrs.port;
 	}
 	
 	private static class InetAddressAdapter extends XmlAdapter<String, InetAddress>

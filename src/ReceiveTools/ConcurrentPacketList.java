@@ -129,7 +129,7 @@ public class ConcurrentPacketList
 		while(!manager.isComplete() && !stop.get())
 		{	
 			//if((size=queue.size())>10)
-			//System.out.println("** list size="+(queue.size())+"   | count="+count);
+				//System.out.println("** list size="+(queue.size())+"   | count="+count);
 			container = queue.poll(timeout_nanosecond,  TimeUnit.NANOSECONDS);
 			if(container==null)
 			{//System.out.println("container null");
@@ -196,13 +196,15 @@ public class ConcurrentPacketList
 		return queue.add(container);
 	}
 	
-	public boolean add(byte[] buffer)
+	public boolean add(byte[] buff, int offset, int len)
 	{
 		if(is_closed.get())
 			return false;
 		
-		if(buffer==null)
+		if(buff==null)
 			throw new IllegalArgumentException();
+		
+		byte[] buffer = Arrays.copyOfRange(buff, offset, len);
 		
 		PacketReader packet =  new PacketReader(info);
 		if(!packet.depack(buffer))
@@ -214,7 +216,7 @@ public class ConcurrentPacketList
 		if(packet.getHeader().getStreamId()!=manifest.id)
 			return false;
 		
-		return add(packet.getHeader(), packet.getBuffer().clone());
+		return add(packet.getHeader(), packet.getBuffer());
 	}
 	
 	

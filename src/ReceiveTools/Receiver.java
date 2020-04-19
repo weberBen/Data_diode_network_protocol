@@ -15,6 +15,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
+import java.io.UnsupportedEncodingException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -28,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
@@ -37,6 +39,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.swing.SwingWorker;
 import javax.swing.event.ChangeEvent;
@@ -57,7 +60,9 @@ import PacketConstructor.PacketReader;
 import PacketConstructor.PacketType;
 import PacketManager.InFilePacketManager;
 import PacketManager.PacketContent;
+import PacketManager.PacketManager;
 import PacketTools.Checksum;
+import PacketTools.Range;
 import UserInterface.CancellationEvent;
 import UserInterface.LockEvent;
 import UserInterface.ManifestEvent;
@@ -72,75 +77,156 @@ public class Receiver
 {
 	private static final String STRING_CODEX = "UTF-8";
 	
-	private StreamInfo streamInfo;
-	private HashMap<Long, ConcurrentPacketList> mapIdList;
-	private PacketReceiver[] receive_threads;
-	private NetworkAddress address;
-	private ConcurrentPacketList pool;
+	private HashMap<Long, PacketManager> mapIdList;
 	private ConcurrentLinkedQueue<ReceiverListener> received_request;
 	private SwingWorker<Void, ReceptionEvent> swingWorkder;
-	private AtomicBoolean is_running;
+	private AtomicBoolean stop;
 	
 	public Receiver()
 	{
-		this.mapIdList = new HashMap<Long, ConcurrentPacketList>();
+		this.mapIdList = new HashMap<Long, PacketManager>();
 		this.received_request = new ConcurrentLinkedQueue<ReceiverListener>();
 		this.swingWorkder = null;
-		this.is_running = new AtomicBoolean(false);
+		this.stop = new AtomicBoolean(false);
 	}
-	
-	private PacketReceiver[] setReceiveThread(NetworkAddress address, StreamInfo streamInfo, int buffer_size) throws SocketException
-	{
-		int[] ports = address.getPorts();
-		PacketReceiver[] list = new PacketReceiver[ports.length];
-		for(int i=0; i<list.length; i++)
-		{
-			list[i] = new PacketReceiver(ports[i], address.getIp(), streamInfo, buffer_size);
-		}
-		
-		return list;
-	}
-	
-	private void startThreads(Runnable[] list)
-	{
-		Thread t;
-		for(Runnable r : list)
-		{
-			t = new Thread(r);
-	        t.setDaemon(true);//stop at the end of the JVM
-	        t.start(); 
-		}
-	}
-	
-	private void endThreads(PacketReceiver[] list)
-	{
-		for(PacketReceiver r : list)
-		{
-			r.close();
-		}
-	}
-	
 
-	public void close() throws IOException
+	public void interupt() throws IOException
 	{
-		if(swingWorkder!=null)
-			swingWorkder.cancel(true);
-			
-		endThreads(receive_threads);
+		interupt(true);
+	}
+	
+	public void interupt(boolean on) throws IOException
+	{
+		stop.set(on);
 		
-		for (Map.Entry<Long, ConcurrentPacketList>entry : mapIdList.entrySet()) 
+		if(swingWorkder!=null)
+		{
+			swingWorkder.cancel(on);
+		}
+	}
+	
+	public void close() throws Exception
+	{
+		Exception ex = null;
+		try 
+		{
+			interupt();
+		} catch (IOException e) 
+		{
+			ex = e;
+		}
+		
+		for (Map.Entry<Long, PacketManager>entry : mapIdList.entrySet()) 
 		{
 			Long manifest_id = entry.getKey();
-		    ConcurrentPacketList list = entry.getValue();
+			PacketManager manager = entry.getValue();
 		    
-		    list.close();
+			try 
+			{
+				manager.close();
+			} catch (IOException e) 
+			{
+				ex = e;
+			}
 		}
 		
-		if(pool!=null)
+		if(ex!=null)
+			throw ex;
+	}
+	
+	
+	private Manifest getManifest(UdpSocketList socket_list) throws InvalidPacketStreamException, OutOfMemoryError, InterruptedException, UnsupportedEncodingException
+	{
+		Manifest manifest = null;
+		byte[] packet;
+		
+		do
 		{
-			pool.close();
+			packet = socket_list.getPacket();
+			
+		}while(packet==null && !stop.get());
+		if(stop.get())
+			throw new CancellationException();
+		
+		PacketReader packetReader = new PacketReader(Manifest.BYTES);
+		if(!packetReader.depack(packet))
+		{
+			System.out.println("manifest checksum false");
+			throw new InvalidPacketStreamException();
+		}
+		
+		if(!packetReader.getHeader().getType().isManifest())
+		{
+			throw new InvalidPacketStreamException();
+		}
+		
+		manifest = Manifest.readExternal(packet, packetReader.getOffsetData());
+		if(manifest==null)
+		{
+			throw new InvalidPacketStreamException();
+		}
+		
+		return manifest;
+	}
+	
+	private void reassemble(PacketManager manager, UdpSocketList socket_list, long timeout_ns) throws OutOfMemoryError, InterruptedException, IOException, EndOfPacketReassemblingException, ReassemblingException, TimeoutException
+	{
+		PacketReader packetReader = new PacketReader(manager.getManifest().blockSize);
+		byte[] packet;
+		
+		long start = System.nanoTime();
+		long end;
+		while(!manager.isComplete() && !stop.get())
+		{	
+			//System.out.println("\tadd type="+container.header.getType()+", index="+container.header.getIndex());
+			
+			end = System.nanoTime();
+			if(end-start>timeout_ns)
+				throw new TimeoutException();
+			
+			packet = socket_list.getPacket();
+			if(packet==null)
+				continue;
+			
+			start = System.nanoTime();
+			
+			if(!packetReader.depack(packet))
+				continue;
+			
+			manager.add(packetReader.getHeader(), packetReader.getBuffer(), packetReader.getOffsetData());
+		}
+		if(stop.get())
+			throw new CancellationException();
+		
+		if(manager.isComplete())
+		{
+			List<PacketType> types = manager.update();
+			if(types!=null)
+			{
+				System.out.println("INCOMPLETE TYPES=");
+				for(PacketType type : types)
+				{
+					System.out.println("\t"+type);
+				}
+			}
+			
+			System.out.println("MISSING PACKET=");
+			Iterator<Range> missings = manager.getMissingPacket(PacketType.TYPE_DATA);
+			while(missings.hasNext())
+			{
+				System.out.println("\t"+missings.next());
+			}
+			
+			
+			if(!manager.isReassemblyFinished())
+			{
+				throw new ReassemblingException();
+			}
+			
+			throw new EndOfPacketReassemblingException();
 		}
 	}
+	
 	
 	public void receive(ReceiverListener receiver_listener)
 	{	
@@ -150,118 +236,116 @@ public class Receiver
 			private Instant start;
 			private Instant finish;
             @Override
-            protected Void doInBackground() 
+            protected Void doInBackground()
             { 
-            	if(this.isCancelled())
+            	if(this.isCancelled() || stop.get())
             		return null;
             	
-				
-				
-            	streamInfo = new StreamInfo();
-        		if(address==null || !address.equals(receiver_listener.address))
-        		{
-        			try
-        			{
-        				receive_threads = setReceiveThread(receiver_listener.address, streamInfo, Environment.MAXIMUN_PACKET_SIZE);
-        				
-        			}catch(SocketException e)
-        			{
-        				ReceptionEvent event = new ReceivedEvent(new SocketException(e.getMessage()));
-        				publish(event);
-        				
-        				return null;
-        			}catch(CancellationException e)
-        			{
-        				publish(new CancellationEvent());
-        				return null;
-        			}
-        		}
+            	UdpSocketList socket_list = null;
+            	Manifest manifest = null;
+        		PacketManager manager = null;
         		
-        		startThreads(receive_threads);
-        		
-        		System.out.println("Waiting for manifest");
-        		Manifest manifest = null;
-        		try
-        		{
-        			manifest = streamInfo.getManifest();
-        		}catch(InvalidPacketStreamException e)
-        		{
-        			System.out.println("manifest reception fail");
-        			
-        			ReceptionEvent event = new ManifestEvent(new InvalidPacketStreamException(e));
+            	try
+            	{
+	            	socket_list = new UdpSocketList(receiver_listener.addressList);
+	            	socket_list.open();
+	        		
+	        		System.out.println("Waiting for manifest");
+	        		try
+	        		{
+	        			manifest = getManifest(socket_list);
+	        			
+	        			ReceptionEvent event = new ManifestEvent(manifest);
+	    				publish(event);
+	    				
+	        		}catch(InvalidPacketStreamException e)
+	        		{
+	        			System.out.println("manifest reception fail");
+	        			
+	        			ReceptionEvent event = new ManifestEvent(e);
+	    				publish(event);
+	    				
+	    				return null;
+	        		}catch(CancellationException e)
+	        		{
+	        			ReceptionEvent event = new ManifestEvent(e);
+	    				publish(event);
+	    				
+	    				return null;
+	        		}
+	    			
+	        		
+	        		try
+	        		{
+	        			manager = mapIdList.get(manifest.id);
+	        			if(manager==null)
+	        			{System.out.println("oki1");
+	        				PacketBufferInfo info = new PacketBufferInfo(manifest.blockSize);
+	        				manager = PacketManager.getManager(Parms.instance().receiver().getWorkspace(), manifest, info, 
+	        						receiver_listener.nbPacketHold, receiver_listener.nbPacketBlock, receiver_listener.bufferSizeFile, 
+	        						receiver_listener.timeoutNanos);
+	        				mapIdList.put(manifest.id, manager);
+	        			}
+	        			
+	        			publish(new LockEvent());
+	        			System.out.println("start reassembly");
+	        			start = Instant.now();
+	        			
+	        			
+	        			reassemble(manager, socket_list, receiver_listener.timeoutNanos);
+	        			
+	        			
+	        			
+	
+	        		}catch(EndOfPacketReassemblingException e)
+	        		{
+	        			System.out.println("END OF STREAM");
+	        			try 
+	        			{
+	        				String info = finalizeReceivedOperation(manager);
+	        				System.out.println("INFO="+info);
+	        				mapIdList.remove(manifest.id);
+	        				
+	        				finish = Instant.now();
+	        				long timeElapsed = Duration.between(start, finish).toMillis();
+	    					System.out.println("time="+timeElapsed);
+	        				ReceptionEvent event = new ReceivedEvent(manifest, info);
+	        				publish(event);
+	        				
+	        				
+	        			} catch (Exception ex) 
+	        			{
+	        				System.out.println("oki 1 expeitojn="+ex);
+	        				ReceptionEvent event = new ReceivedEvent(manifest, ex);
+	        				publish(event);
+	        				
+	        				return null;
+	        			}
+	        			
+	        		}
+	        		catch(Exception e)
+	        		{System.out.println("oki 2 exception="+e);
+	        		
+	        			ReceptionEvent event = new ReceivedEvent(manifest, e);
+	    				publish(event);
+	    				
+	    				return null;
+	        		}
+            	}catch(Exception e)
+            	{
+            		ReceptionEvent event = new ReceivedEvent(manifest, e);
     				publish(event);
-    				
-    				endThreads(receive_threads);
-    				
-    				return null;
-    				
-        		}
-        		System.out.println("manifest get");		
-        		
-        		
-        		try
-        		{
-        			pool = mapIdList.get(manifest.id);
-        			if(pool==null)
-        			{System.out.println("oki1");
-        				PacketBufferInfo info = new PacketBufferInfo(manifest.blockSize);
-        				pool = new ConcurrentPacketList(Parms.instance().receiver().getWorkspace(), manifest, info, 
-        						receiver_listener.nbPacketHold, receiver_listener.nbPacketBlock, receiver_listener.bufferSizeFile, 
-        						receiver_listener.timeoutNanos);
-        				mapIdList.put(manifest.id, pool);
-        			}
-        			streamInfo.setPacketPool(pool);
-        			publish(new LockEvent());
-        			System.out.println("start reassembly");
-        			start = Instant.now();
-        			pool.reassemble();
-
-        		}catch(EndOfPacketReassemblingException e)
-        		{
-        			System.out.println("END OF STREAM");
-        			try 
-        			{
-        				String info = finalizeReceivedOperation(pool);
-        				System.out.println("INFO="+info);
-        				mapIdList.remove(manifest.id);
-        				
-        				finish = Instant.now();
-        				long timeElapsed = Duration.between(start, finish).toMillis();
-    					System.out.println("time="+timeElapsed);
-        				ReceptionEvent event = new ReceivedEvent(manifest, info);
-        				publish(event);
-        				
-        				
-        			} catch (Exception ex) 
-        			{
-        				System.out.println("oki 1 expeitojn="+ex);
-        				ReceptionEvent event = new ReceivedEvent(manifest, new Exception(ex));
-        				publish(event);
-        				
-        				return null;
-        			}
-        			
-        		}
-        		catch(Exception e)
-        		{System.out.println("oki 2 exception="+e);
-        		
-        			ReceptionEvent event = new ReceivedEvent(manifest, new Exception(e));
-    				publish(event);
-    				
-    				return null;
-        		}
+            	}
         		finally
         		{
-        			if(pool!=null)
         			try 
         			{
-        				pool.flush();
-        			} catch (IOException e) 
+						socket_list.close();
+					} catch (Exception e) 
         			{
-        				ReceptionEvent event = new ReceivedEvent(manifest, new Exception(e));
-        				publish(event);
-        			}
-        			endThreads(receive_threads);
+						ReceptionEvent event = new ReceivedEvent(manifest, e);
+	    				publish(event);
+					}
         		}
         		
         		return null;
@@ -273,7 +357,6 @@ public class Receiver
                 // define what the event dispatch thread  
                 // will do with the intermediate results received 
                 // while the thread is executing 
-            	
             	for(ReceptionEvent event : events)
             	{
             		receiver_listener.listener.stateChanged(new ChangeEvent(event));
@@ -299,28 +382,16 @@ public class Receiver
                     e.printStackTrace(); System.out.println("oki end error 2");
                 }catch(CancellationException e)
                 {System.out.println("oki end error 3");
-                	endThreads(receive_threads);
-            		
-                	streamInfo.stop();
-                	
-            		if(pool!=null)
-            		{
-            			pool.interputReassembly();
-            			try
-            			{
-            				pool.clear();
-            			}catch(IOException ex) {}
-            			pool = null;
-            		}
+                	e.printStackTrace();
                 }
             	
             	receiver_listener.listener.stateChanged(new ChangeEvent(new UnlockEvent()));
             	
-            	ReceiverListener receiver_listener = received_request.poll();
-            	if(receiver_listener!=null)
+            	ReceiverListener rl = received_request.poll();
+            	if(rl!=null)
             	{
             		System.out.println("start new receiver");	
-            		receive(receiver_listener);
+            		receive(rl);
             	}
             } 
         }; 
@@ -363,47 +434,22 @@ public class Receiver
 		return true;
 	}
 	
-	
-	public void interupt() throws IOException
-	{
-		if(swingWorkder!=null)
-		{
-			swingWorkder.cancel(true);
-		}
-		else
-		{
-			endThreads(receive_threads);
-    		
-        	streamInfo.stop();
-        	
-    		if(pool!=null)
-    		{
-    			pool.interputReassembly();
-    			try
-    			{
-    				pool.clear();
-    			}catch(IOException ex) {}
-    			pool = null;
-    		}
-		}
-	}
-	
 	public void dropReceivedObject(long id) throws IOException
 	{
-		ConcurrentPacketList pool = mapIdList.remove(id);
-		if(pool==null)
+		PacketManager manager = mapIdList.remove(id);
+		if(manager==null)
 			return;
 		
-		pool.clear();
+		manager.clear();
 	}
 	
 	public void SaveOnDiskReceivedObject(long id) throws IOException
 	{
-		ConcurrentPacketList pool = mapIdList.remove(id);
-		if(pool==null)
+		PacketManager manager = mapIdList.remove(id);
+		if(manager==null)
 			return;
 		
-		pool.close();
+		manager.close();
 	}
 	
 	public void removeReceivedObjectFromMemory(long id)
@@ -438,12 +484,12 @@ public class Receiver
 	}*/
 	
 	
-	private byte[] getReceivedMetadata(ConcurrentPacketList pool) throws IOException, IncompleteContentException
+	private byte[] getReceivedMetadata(PacketManager manager) throws IOException, IncompleteContentException
 	{
-		if(pool==null)
+		if(manager==null)
 			return null;
 		
-		PacketContent content = pool.getContent(PacketType.TYPE_METADATA);
+		PacketContent content = manager.getContent(PacketType.TYPE_METADATA);
 		if(content==null)
 			return null;
 		
@@ -460,225 +506,167 @@ public class Receiver
 	
 	public byte[] getReceivedMetadata(long id) throws IOException, IncompleteContentException
 	{
-		ConcurrentPacketList pool = mapIdList.get(id);
-		if(pool==null)
+		PacketManager manager = mapIdList.get(id);
+		if(manager==null)
 		{
 			throw new IllegalArgumentException();
 		}
 		
-		return getReceivedMetadata(pool);
+		return getReceivedMetadata(manager);
 		
 	}
 	
-	private Object getReceivedData(ConcurrentPacketList pool) throws IncompleteContentException
+	private Object getReceivedData(PacketManager manager) throws IncompleteContentException
 	{
-		if(pool==null)
+		if(manager==null)
 		{
 			System.out.println("POOL IS NULL get content data");
 			return null;
 		}
 		
-		return pool.getContent(PacketType.TYPE_DATA).content;
+		return manager.getContent(PacketType.TYPE_DATA).content;
 	}
 		
 	public Object getReceivedData(long id) throws IncompleteContentException
 	{
-		ConcurrentPacketList pool = mapIdList.get(id);
-		if(pool==null)
+		PacketManager manager = mapIdList.get(id);
+		if(manager==null)
 		{
 			throw new IllegalArgumentException();
 		}
 		
-		return getReceivedData(pool);
+		return getReceivedData(manager);
 	}
 	
-	private String finalizeReceivedOperation(ConcurrentPacketList pool) throws Exception
+	private String finalizeReceivedOperation(PacketManager manager) throws Exception
 	{
-		if(pool==null)
+		if(manager==null)
 		{
 			throw new IllegalArgumentException();
 		}
-		Manifest manifest = pool.getManifest();
+		Manifest manifest = manager.getManifest();
 		
 		
-		pool.flush();
+		manager.flush();
 		
 		ContentActionInterface itf = manifest.type.getAction();
 		if(itf==null)
 			return null;
 		
-		return itf.actionOn(getReceivedMetadata(pool), getReceivedData(pool));
+		return itf.actionOn(getReceivedMetadata(manager), getReceivedData(manager));
 	}
 		
 	public String finalizeReceivedOperation(long id) throws Exception
 	{
-		ConcurrentPacketList pool = mapIdList.get(id);
-		if(pool==null)
+		PacketManager manager = mapIdList.get(id);
+		if(manager==null)
 		{
 			throw new IllegalArgumentException();
 		}
 		
-		return finalizeReceivedOperation(pool);
+		return finalizeReceivedOperation(manager);
 	} 
 	
-	private static class StreamInfo
-	{
-		private AtomicBoolean is_waiting;
-		private PacketReader packetReader;
-		private volatile ConcurrentPacketList packets_pool;
-		private AtomicBoolean buffer_set;
-		private AtomicBoolean stop;
-		private volatile byte[] buffer;
-		
-		public StreamInfo()
-		{
-			this.packetReader = new PacketReader(Manifest.BYTES);
-			this.is_waiting = new AtomicBoolean(true);
-			this.buffer_set = new AtomicBoolean(false);
-			this.stop = new AtomicBoolean(false);
-		}
-		
-		private void stop()
-		{
-			this.stop.set(true);
-		}
-		
-		public void setManifest(byte[] buffer)
-		{
-			if(buffer==null)
-				return;
-			
-			while(!buffer_set.compareAndSet(false, true))
-			{
-				
-			}
-			//System.out.println("buffer set null=?"+(buffer==null));
-			this.buffer = buffer.clone();
-			//System.out.println("\t buffer null=?"+(this.buffer==null)+"  - euals="+Arrays.equals(this.buffer, buffer));
-		}
-		
-		public boolean isWaitingManifest()
-		{
-			return is_waiting.get();
-		}
-		
-		public Manifest getManifest() throws InvalidPacketStreamException
-		{
-			is_waiting.set(true);
-			
-			Manifest manifest = null;
-			while((buffer==null || !buffer_set.get()) && !stop.get())
-			{
-				
-			}
-			if(buffer==null)
-			{
-				System.out.println("buffer is null");
-			}
-			if(stop.compareAndSet(true, false))
-			{
-				throw new CancellationException();
-			}
-			
-			if(!packetReader.depack(buffer))
-			{
-				System.out.println("manifest checksum false");
-				buffer_set.set(false);
-				throw new InvalidPacketStreamException();
-			}
-			
-			if(!packetReader.getHeader().getType().isManifest())
-			{
-				buffer_set.set(false);
-				throw new InvalidPacketStreamException();
-			}
-			
-			manifest = Manifest.readExternal(buffer, packetReader.getOffsetData());
-			if(manifest==null)
-			{
-				buffer_set.set(false);
-				throw new InvalidPacketStreamException();
-			}
-			buffer_set.set(false);
-			
-			is_waiting.set(false);
-			
-			return manifest;
-		}
-		
-		public ConcurrentPacketList getPacketPool()
-		{
-			return packets_pool;
-		}
-		
-		public void setPacketPool(ConcurrentPacketList pool)
-		{
-			this.packets_pool = pool;
-		}
-	}
 	
 	
-	private static class PacketReceiver implements Runnable
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	private static class UdpSocketList
 	{
-		private static int count = 0;
-		public final int ID;
-		private volatile boolean stop;
-		private volatile DatagramSocket socket;
-		private StreamInfo streamInfo;
-		private int buffer_size;
+		private int index;
+		private UdpSocket[] socket_list;
+		private NetworkAddress[] address_list;
 		
-		public PacketReceiver(int port, InetAddress ip, StreamInfo streamInfo, int buffer_size) throws SocketException
+		public UdpSocketList(NetworkAddress[] address_list) throws OutOfMemoryError, InterruptedException
 		{
-			this.ID = count++;
-			this.stop = false;
-			this.socket = new DatagramSocket(port, ip);
-			this.streamInfo = streamInfo;
-			this.buffer_size = buffer_size;
-		}
-		
-		
-		public void close()
-		{
-			stop = true;
-			socket.close();
-		}
-		
-		public void run()
-		{	
-			byte[] buffer;
-			DatagramPacket packet;
-			ConcurrentPacketList packets_pool;
+			if(address_list==null)
+				throw new IllegalArgumentException();
 			
-			while(!stop)
+			this.address_list = address_list;
+		}
+		
+		public void open() throws OutOfMemoryError, InterruptedException
+		{
+			this.socket_list = openSocketList(address_list);
+		}
+		
+		public void close() throws Exception
+		{
+			closeSocketList(socket_list);
+		}
+		
+		public byte[] getPacket() throws OutOfMemoryError, InterruptedException
+		{
+			if(socket_list==null)
+				return null;
+			
+			byte[] packet = null;
+			
+			for(; index<socket_list.length; index++)
 			{
-		        try 
-		        {
-		        	buffer = new byte[buffer_size];
-		        	packet = new DatagramPacket(buffer, buffer.length);
-		        	
-					socket.receive(packet);
-		        	
-		        	packet.setData(buffer);
-		        	packet.setLength(buffer.length);
-					
-					if(streamInfo.isWaitingManifest())
-					{System.out.println("thread "+ID+"  get manifest");
-						streamInfo.setManifest(buffer);
-						System.out.println("thread "+ID+" manifest end");
-					}
-					else
-					{//System.out.println("thread "+ID+"  get packet");
-						packets_pool = streamInfo.getPacketPool();
-						if(packets_pool!=null)
-							packets_pool.add(packet.getData());
-					}
-					
-				} catch (IOException e) 
-		        {
-					e.printStackTrace();
+				packet = socket_list[index].getReceivedPacket();
+				if(packet!=null)
 					break;
+			}
+			index++;
+			
+			if(index>=socket_list.length)
+				index = 0;
+			
+			return packet;
+		}
+		
+		
+		private static UdpSocket[] openSocketList(NetworkAddress address_list[]) throws OutOfMemoryError, InterruptedException
+		{
+			UdpSocket[] socket_list = new UdpSocket[address_list.length];
+			for(int i=0; i<socket_list.length; i++)
+			{
+				NetworkAddress address = address_list[i];
+				UdpSocket socket = socket_list[i] = new UdpSocket(address.getIp().getHostName(), address.getPort(), Environment.MAXIMUN_PACKET_SIZE);
+				socket.open();
+			}
+			
+			return socket_list;
+		}
+		
+		private static void closeSocketList(UdpSocket[] socket_list) throws Exception
+		{
+			if(socket_list==null)
+				return ;
+			
+			Exception ex = null;
+			
+			for(UdpSocket socket : socket_list)
+			{
+				try
+				{
+					if(socket==null)
+						continue;
+					
+					socket.close();
+				}catch(Exception e)
+				{
+					ex = e; 
 				}
 			}
+			
+			if(ex!=null)
+			{
+				throw ex;
+			}
 		}
 	}
+	
 }

@@ -11,7 +11,7 @@ import generalTools.NetworkAddress;
 
 public class ReceiverListener
 {
-	public final NetworkAddress address;
+	public final NetworkAddress[] addressList;
 	public final int nbPacketHold;
 	public final int nbPacketBlock;
 	public final int bufferSizeFile;
@@ -20,10 +20,10 @@ public class ReceiverListener
 	private LocalDateTime datetime;
 	
 	
-	public ReceiverListener (NetworkAddress address, int nb_packet_hold, int nb_packet_block,  int buffer_size_file, 
+	public ReceiverListener (NetworkAddress[] address_list, int nb_packet_hold, int nb_packet_block,  int buffer_size_file, 
 			long timeout_ns, ChangeListener listener)
 	{
-		this.address = address;
+		this.addressList = address_list;
 		this.nbPacketHold = nb_packet_hold;
 		this.nbPacketBlock = nb_packet_block;
 		this.bufferSizeFile = buffer_size_file;
