@@ -238,6 +238,7 @@ public class Receiver
             @Override
             protected Void doInBackground()
             { 
+            	
             	if(this.isCancelled() || stop.get())
             		return null;
             	
@@ -246,7 +247,7 @@ public class Receiver
         		PacketManager manager = null;
         		
             	try
-            	{
+            	{System.out.println("new swoke rlist");
 	            	socket_list = new UdpSocketList(receiver_listener.addressList);
 	            	socket_list.open();
 	        		
@@ -279,7 +280,7 @@ public class Receiver
 	        		{
 	        			manager = mapIdList.get(manifest.id);
 	        			if(manager==null)
-	        			{System.out.println("oki1");
+	        			{
 	        				PacketBufferInfo info = new PacketBufferInfo(manifest.blockSize);
 	        				manager = PacketManager.getManager(Parms.instance().receiver().getWorkspace(), manifest, info, 
 	        						receiver_listener.nbPacketHold, receiver_listener.nbPacketBlock, receiver_listener.bufferSizeFile, 
@@ -385,12 +386,14 @@ public class Receiver
                 	e.printStackTrace();
                 }
             	
+                System.out.println("*receiver");
             	receiver_listener.listener.stateChanged(new ChangeEvent(new UnlockEvent()));
             	
             	ReceiverListener rl = received_request.poll();
             	if(rl!=null)
             	{
-            		System.out.println("start new receiver");	
+            		System.out.println("start new receiver");
+            		this.cancel(true);
             		receive(rl);
             	}
             } 
@@ -448,7 +451,6 @@ public class Receiver
 		PacketManager manager = mapIdList.remove(id);
 		if(manager==null)
 			return;
-		
 		manager.close();
 	}
 	

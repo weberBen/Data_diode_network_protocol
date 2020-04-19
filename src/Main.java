@@ -95,7 +95,6 @@ import PacketManager.PacketManager;
 import PacketTools.Checksum;
 import PacketTools.MissingPackets;
 import PacketTools.Range;
-import ReceiveTools.ConcurrentPacketList;
 import ReceiveTools.Receiver;
 import SendTools.PacketSender;
 import SendTools.Sender;
@@ -113,7 +112,6 @@ import javax.imageio.ImageIO;
 public class Main 
 {
 	
-	private static ConcurrentPacketList stream;
 	private static volatile Manifest manifest;
 	private static final int nb_packet_to_hold = 255;
 	private static final int nb_packet = nb_packet_to_hold*100;

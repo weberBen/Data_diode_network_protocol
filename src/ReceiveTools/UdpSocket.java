@@ -19,10 +19,11 @@ public class UdpSocket
 			throw new IllegalArgumentException();
 		
 		this.ptr = null;
-		this.is_opened = new AtomicBoolean(false);
 		this.hostname = hostname;
 		this.port = port;
 		this.max_buffer_size = max_buffer_size;
+		
+		this.is_opened = new AtomicBoolean(false);
 		
 		Thread shutdownThread = new Thread(() -> shutdownHandler(this));
 		Runtime.getRuntime().addShutdownHook(shutdownThread);
@@ -41,6 +42,7 @@ public class UdpSocket
 	}
 	
 	
+	
 	public void open() throws InterruptedException,OutOfMemoryError
 	{
 		if(!is_opened.compareAndSet(false, true))
@@ -55,8 +57,11 @@ public class UdpSocket
 	{
 		System.out.println("closing...");
 		if(ptr==null)
-			return;
+			return ;
+		
 		closeUdpSocket(ptr);
+		
+		is_opened.set(false);
 	}
 	
 	public byte[] getReceivedPacket() throws InterruptedException, OutOfMemoryError
@@ -86,6 +91,23 @@ public class UdpSocket
 class Pointer 
 {
 	private long address;
+	private AtomicBoolean in_use;
 	
-	public Pointer(){}
+	private Pointer()
+	{
+		this.in_use = new AtomicBoolean(false);
+	}
+	
+	private void lock()
+	{
+		while(!in_use.compareAndSet(false, true))
+		{
+			
+		}
+	}
+	
+	private void unlock()
+	{
+		in_use.set(false);
+	}
 }

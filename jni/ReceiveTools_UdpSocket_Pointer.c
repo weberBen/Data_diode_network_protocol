@@ -77,6 +77,36 @@ void * getPointer(JNIEnv *env, jobject pointer)
     return (void *)address;
 }
 
+int lockPointer(JNIEnv *env, jobject pointer)
+{
+    jclass cls = (*env)->FindClass(env,POINTER_CLASS_NAME);
+    if(cls==NULL)
+        return -1;
+
+    jmethodID mid = (*env)->GetMethodID(env, cls, "lock", "()V");
+    if (mid == 0)
+        return -1;
+  
+    (*env)->CallVoidMethod(env, pointer, mid);
+
+    return 0;
+}
+
+int unlockPointer(JNIEnv *env, jobject pointer)
+{
+    jclass cls = (*env)->FindClass(env,POINTER_CLASS_NAME);
+    if(cls==NULL)
+        return -1;
+
+    jmethodID mid = (*env)->GetMethodID(env, cls, "unlock", "()V");
+    if (mid == 0)
+        return -1;
+  
+    (*env)->CallVoidMethod(env, pointer, mid);
+
+    return 0;
+}
+
 JNIEXPORT jobject JNICALL Java_ReceiveTools_UdpSocket_openUdpSocket(JNIEnv *env, jobject obj, 
     jstring hostname_obj, jint port_obj, jint max_buffer_size_obj) 
 {  
@@ -138,6 +168,7 @@ JNIEXPORT jobject JNICALL Java_ReceiveTools_UdpSocket_openUdpSocket(JNIEnv *env,
 
     jobject prt = createJavaPointer(env, (void *)socket_instance);
 
+    fprintf(stderr, "open pointer adrees=%ld\n", (long)socket_instance);
     return prt;
 }
 
@@ -173,9 +204,29 @@ jbyteArray toJByteArray(JNIEnv *env, char * buffer, unsigned int buffer_size)
 
 JNIEXPORT void JNICALL Java_ReceiveTools_UdpSocket_dropAllUdpReceivedPackets(JNIEnv *env, jobject obj, jobject pointer)
 {
+    if(pointer==NULL)
+        return ;
+    
+    if(lockPointer(env, pointer)==-1)
+    {
+        jclass exp_cls = (*env)->FindClass(env, "java/lang/InterruptedException");
+        (*env)->ThrowNew(env, exp_cls, "Cannot lock the pointer");
+
+        return ;
+    }
+
     void * ptr = getPointer(env, pointer);
     if(ptr==NULL)
+    {
+        if(unlockPointer(env, pointer)==-1)
+        {
+            jclass exp_cls = (*env)->FindClass(env, "java/lang/InterruptedException");
+            (*env)->ThrowNew(env, exp_cls, "Cannot unlock the pointer");
+        }
+
         return ;
+    }
+        
     
     SocketInstance * socket_instance = (SocketInstance *)ptr;
     if(socket_instance->error!=NULL)
@@ -183,10 +234,22 @@ JNIEXPORT void JNICALL Java_ReceiveTools_UdpSocket_dropAllUdpReceivedPackets(JNI
         jclass exp_cls = (*env)->FindClass(env, "java/lang/InterruptedException");
         (*env)->ThrowNew(env, exp_cls, getErrorMsg(&socket_instance->error));
 
+        if(unlockPointer(env, pointer)==-1)
+        {
+            jclass exp_cls = (*env)->FindClass(env, "java/lang/InterruptedException");
+            (*env)->ThrowNew(env, exp_cls, "Cannot unlock the pointer");
+        }
+
         return ;
     }
 
     dropAllReceivedPackets(socket_instance);
+
+    if(unlockPointer(env, pointer)==-1)
+    {
+        jclass exp_cls = (*env)->FindClass(env, "java/lang/InterruptedException");
+        (*env)->ThrowNew(env, exp_cls, "Cannot unlock the pointer");
+    }
 }
 
 JNIEXPORT jbyteArray JNICALL Java_ReceiveTools_UdpSocket_getUdpReceivedPacket(JNIEnv *env, jobject obj, jobject pointer)
@@ -195,9 +258,27 @@ JNIEXPORT jbyteArray JNICALL Java_ReceiveTools_UdpSocket_getUdpReceivedPacket(JN
     char * buffer = (char *)ptr;
     free(buffer);*/
 
+    if(pointer==NULL)
+        return NULL;
+    
+    if(lockPointer(env, pointer)==-1)
+    {
+        jclass exp_cls = (*env)->FindClass(env, "java/lang/InterruptedException");
+        (*env)->ThrowNew(env, exp_cls, "Cannot lock the pointer");
+
+        return NULL;
+    }
+
     void * ptr = getPointer(env, pointer);
     if(ptr==NULL)
+    {
+        if(unlockPointer(env, pointer)==-1)
+        {
+            jclass exp_cls = (*env)->FindClass(env, "java/lang/InterruptedException");
+            (*env)->ThrowNew(env, exp_cls, "Cannot unlock the pointer");
+        }
         return NULL;
+    }
     
     SocketInstance * socket_instance = (SocketInstance *)ptr;
     if(!isDefaultError(&socket_instance->error))
@@ -205,12 +286,26 @@ JNIEXPORT jbyteArray JNICALL Java_ReceiveTools_UdpSocket_getUdpReceivedPacket(JN
         jclass exp_cls = (*env)->FindClass(env, "java/lang/InterruptedException");
         (*env)->ThrowNew(env, exp_cls, getErrorMsg(&socket_instance->error));
 
+        if(unlockPointer(env, pointer)==-1)
+        {
+            jclass exp_cls = (*env)->FindClass(env, "java/lang/InterruptedException");
+            (*env)->ThrowNew(env, exp_cls, "Cannot unlock the pointer");
+        }
+
         return NULL;
     }
 
     CharArray * char_array = getUdpReceivedPacket(socket_instance);
     if(char_array==NULL)
+    {
+        if(unlockPointer(env, pointer)==-1)
+        {
+            jclass exp_cls = (*env)->FindClass(env, "java/lang/InterruptedException");
+            (*env)->ThrowNew(env, exp_cls, "Cannot unlock the pointer");
+        }
+
         return NULL;
+    }
     
     jbyteArray jbyte_array = toJByteArray(env, char_array->array, char_array->length);
     if(jbyte_array==NULL)
@@ -221,6 +316,14 @@ JNIEXPORT jbyteArray JNICALL Java_ReceiveTools_UdpSocket_getUdpReceivedPacket(JN
 
     freeCharArray(char_array);
 
+    if(unlockPointer(env, pointer)==-1)
+    {
+        jclass exp_cls = (*env)->FindClass(env, "java/lang/InterruptedException");
+        (*env)->ThrowNew(env, exp_cls, "Cannot unlock the pointer");
+
+        return NULL;
+    }
+
     return jbyte_array;
 }
 
@@ -229,30 +332,51 @@ JNIEXPORT void JNICALL Java_ReceiveTools_UdpSocket_closeUdpSocket(JNIEnv *env, j
 {
     if(pointer==NULL)
         return ;
+
+    if(lockPointer(env, pointer)==-1)
+    {
+        jclass exp_cls = (*env)->FindClass(env, "java/lang/InterruptedException");
+        (*env)->ThrowNew(env, exp_cls, "Cannot lock the pointer");
+
+        return ;
+    }
     
     void * ptr = getPointer(env, pointer);
     if(ptr==NULL)
     {
         printf("null pointer !\n");
+        if(unlockPointer(env, pointer)==-1)
+        {
+            jclass exp_cls = (*env)->FindClass(env, "java/lang/InterruptedException");
+            (*env)->ThrowNew(env, exp_cls, "Cannot unlock the pointer");
+        }
         return ;
     }
 
     SocketInstance * socket_instance = (SocketInstance *)ptr;
 
-    Error error;initError(&error);
+    fprintf(stderr, "close pointer adrees=%ld\n", (long)socket_instance);
+
+    Error error;initError(&error);fprintf(stderr, "close oki1\n");
     if(closeUdpSocket(&error, socket_instance)==-1)
-    {
+    {fprintf(stderr, "close oki1.1\n");
         jclass exp_cls = (*env)->FindClass(env, "java/lang/InterruptedException");
-        (*env)->ThrowNew(env, exp_cls, error->msg);
-        removeError(&error);
+        (*env)->ThrowNew(env, exp_cls, getErrorMsg(&error));fprintf(stderr, "close oki1.2\n");
+        removeError(&error);fprintf(stderr, "close oki1.3\n");
     }
     fprintf(stderr, "close close close");
     //set pointer to null
     if(setPointerAddress(env, pointer, (long)NULL)==-1)
-    {
+    {fprintf(stderr, "close close close.1\n");
         jclass exp_cls = (*env)->FindClass(env, "java/lang/IllegalAccessException");
         (*env)->ThrowNew(env, exp_cls, "Cannot set the pointer adress");
     }
+fprintf(stderr, "close oki2\n");
+    removeError(&error);fprintf(stderr, "close oki3\n");
 
-    removeError(&error);
+    if(unlockPointer(env, pointer)==-1)
+    {
+        jclass exp_cls = (*env)->FindClass(env, "java/lang/InterruptedException");
+        (*env)->ThrowNew(env, exp_cls, "Cannot unlock the pointer");
+    }
 }

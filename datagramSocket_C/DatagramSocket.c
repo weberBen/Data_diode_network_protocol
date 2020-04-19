@@ -248,7 +248,7 @@ SocketInstance * openUdpSocket(Error * error, const char * hostname, unsigned sh
     }
 
     
-    struct sched_param param;
+    /*struct sched_param param;
     rc = pthread_attr_getschedparam (&thread_attr, &param);
     if(rc!=0)
     {
@@ -317,7 +317,7 @@ SocketInstance * openUdpSocket(Error * error, const char * hostname, unsigned sh
         removeError(&inner_error);
 
         return NULL;
-    }
+    }*/
 
     if ((rc = pthread_create(&thread, &thread_attr, startListening, socket_instance))!=0) 
     {

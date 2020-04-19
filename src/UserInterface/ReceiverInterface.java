@@ -37,6 +37,7 @@ public class ReceiverInterface
 	
 	private int getNewThreadId()
 	{
+		System.out.println("THREAD cout="+THREAD_COUNT);
 		return THREAD_COUNT++;
 	}
 	
@@ -60,7 +61,7 @@ public class ReceiverInterface
 		
 		ChangeListener changeListner = new ChangeListener() 
 		{
-			private int id = getNewThreadId();
+			private int id = THREAD_COUNT++;
 			
 			@Override
 			public void stateChanged(ChangeEvent event) {
@@ -78,12 +79,8 @@ public class ReceiverInterface
 					{
 						System.out.println("manifest exeption="+evt.exception);
 						evt.exception.printStackTrace();
-						try {
-							receiver.close();
-						} catch (Exception e) {
-							// TODO Auto-generated catch block
-							e.printStackTrace();
-						}
+						
+						return ;
 					}
 				}else if(rep_event instanceof LockEvent)
 				{start = Instant.now();
@@ -118,17 +115,11 @@ public class ReceiverInterface
 						{
 							System.out.println("received object from stream , exception="+evt.exception);
 							evt.exception.printStackTrace();
+							
 						}else
 						{
 							System.out.println("received object from stream id="+evt.manifest.id+" info="+evt.info);
 						}
-					}
-					
-					try {
-						receiver.close();
-					} catch (Exception e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
 					}
 				}
 			 
@@ -140,8 +131,24 @@ public class ReceiverInterface
 		
 		receiver.addReceivedRequest(receiver_listener);
 		
+		receiver_listener = new ReceiverListener(networkConf, nb_packet_to_hold, nb_packet_block, buffer_file_size, timeout, changeListner);
+		receiver.addReceivedRequest(receiver_listener);
+		
 		
 		String line = scanner.nextLine();
+		
+		
+		receiver_listener = new ReceiverListener(networkConf, nb_packet_to_hold, nb_packet_block, buffer_file_size, timeout, changeListner);
+		receiver.addReceivedRequest(receiver_listener);
+		
+		line = scanner.nextLine();
+		
+		try {
+			receiver.close();
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 		
 		
 	}
