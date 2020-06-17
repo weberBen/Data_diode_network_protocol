@@ -1,6 +1,7 @@
 # Data diode network protocol (unstable version)
 
-Rebuild of the protocol used in the [DIY data diode project](https://github.com/wavestone-cdt/dyode)
-The project addresses the problems of assembling and missing packets
+Rebuild of the protocol used in the [DIY data diode project](https://github.com/wavestone-cdt/dyode).
 
-A new version will be released to increase the poor speed transfert
+The project addresses the problems of assembling and missing packets.
+
+A new version will be released to increase the poor speed transfert.
