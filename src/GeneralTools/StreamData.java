@@ -1,4 +1,4 @@
-package generalTools;
+package GeneralTools;
 
 import java.io.InputStream;
 

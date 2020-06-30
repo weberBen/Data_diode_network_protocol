@@ -5,10 +5,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
 
+import GeneralTools.Serialization;
+import GeneralTools.StreamData;
+import GeneralTools.Tools;
 import SendTools.RandomAccessByteArrayInputStream;
-import generalTools.Serialization;
-import generalTools.StreamData;
-import generalTools.Tools;
 
 public class FileMetadata extends OnDiskMetadata
 {

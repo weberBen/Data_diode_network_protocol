@@ -15,6 +15,7 @@ import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -46,11 +47,13 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListSet;
@@ -58,6 +61,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntUnaryOperator;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -71,12 +77,22 @@ import javax.xml.bind.JAXBException;
 import javax.xml.bind.Marshaller;
 import javax.xml.bind.PropertyException;
 
+import org.apache.commons.collections.Buffer;
+import org.apache.commons.collections.BufferUnderflowException;
+import org.apache.commons.collections.BufferUtils;
+import org.apache.commons.collections.buffer.CircularFifoBuffer;
+
 import EnvVariables.Environment;
 import EnvVariables.Parms;
 import EnvVariables.SenderParms;
 import Exceptions.InvalidPacketStreamException;
 import Exceptions.MissingPacketsException;
 import Exceptions.ReadingPacketException;
+import GeneralTools.BufferedRandomAccessFile;
+import GeneralTools.FilePreallocator;
+import GeneralTools.NetworkAddress;
+import GeneralTools.Serialization;
+import GeneralTools.Tools;
 import Metadata.ClipboardMetadata;
 import Metadata.DataType;
 import Metadata.FileMetadata;
@@ -102,9 +118,7 @@ import UserInterface.Menu;
 import UserInterface.MenuItem;
 import UserInterface.ReceiverInterface;
 import UserInterface.UserMenu;
-import generalTools.NetworkAddress;
-import generalTools.Serialization;
-import generalTools.Tools;
+
 import java.awt.image.DataBufferByte;
 import java.awt.image.DataBufferInt;
 import javax.imageio.ImageIO;
@@ -117,7 +131,7 @@ public class Main
 	private static final int nb_packet = nb_packet_to_hold*100;
 	private static final int block_size = 1200;
 	private static final PacketBufferInfo info = new PacketBufferInfo(block_size);
-	private static final String work_directory = System.getProperty("user.dir") + File.separator + "test";
+	private static final String work_directory =  "/home/benjamin/eclipse-workspace/Data_diode_network_protocol/test"; //System.getProperty("user.dir") + File.separator + "test";
 	private static final byte[] init_data = new byte[nb_packet*block_size+3];
 	
 	public static ArrayList blockShuffle(ArrayList list, int block)
@@ -152,11 +166,13 @@ public class Main
 	{
 		public final PacketHeader header;
 		public final byte[] buffer;
+		private AtomicInteger pos;
 		
 		public Container(PacketHeader header, byte[] buffer)
 		{
 			this.header = header;
 			this.buffer = buffer;
+			this.pos = new AtomicInteger(0);
 		}
 	}
 	
@@ -184,33 +200,576 @@ public class Main
 		}
 	}
 	
-	public static void main111(String[] agrs) throws Exception
+	private static class Reciver implements Runnable
 	{
-		System.out.println("oki");
+		private volatile boolean stop;
+		private DatagramSocket socket;
+		
+		public Reciver() throws SocketException, UnknownHostException
+		{
+			stop = false;
+			socket = new DatagramSocket(1652, InetAddress.getByName("169.254.8.186"));
+			
+		}
+		
+		public void stop()
+		{
+			stop = true;
+			socket.close();
+		}
+		
+		public void run()
+		{
+			byte[] data = new byte[1500];
+			
+			DatagramPacket dp = new DatagramPacket(data, data.length); 
+			
+			System.out.println("waiting manifest");
+			try {
+				socket.receive(dp);
+			} catch (IOException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+				return ;
+			}
+			
+			PacketReader packerReader = new PacketReader(Manifest.BYTES);
+			if(!packerReader.depack(dp.getData()))
+			{
+				System.out.println("manifest false");
+				return;
+			}
+			
+			//CircularBufferRing ring = new CircularBufferRing(10, 1500);
+			
+			System.out.println("manifest ok");
+			
+			Manifest manifest = PacketReader.getManifest(data);
+			packerReader = new PacketReader(manifest.blockSize);
+			
+			byte[] buffer = new byte[1500*2];
+			long count = 0;
+			while(!stop)
+			{
+				dp.setLength(data.length);
+				//dp.setData(ring.buffer, ring.getNewPos(), 1500);
+				try {
+					socket.receive(dp);
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					break;
+				}
+				count++;
+				/*if(!packerReader.depack(dp.getData()))
+				{
+					System.out.println("packet false");
+					break;
+				}
+				
+				for(int i=0; i<packerReader.getHeader().getLength(); i++)
+				{
+					buffer[i] = data[i+packerReader.getOffsetData()];
+				}*/
+				
+				if(count%10000==0)
+					System.out.println("count="+count);
+			}
+			
+			System.out.println("count="+count);
+			
+			socket.close();
+		}
+	}
+	public static void main1245(String[] agrs) throws Exception
+	{
+		Reciver rr = new Reciver();
+		
+		Thread t = new Thread(rr);
+        t.setDaemon(true);//stop at the end of the JVM
+        t.start(); 
+        
+        System.in.read();
+        
+        rr.stop();
+        t.join();
+		
+		System.out.println("end");
 	}
 	
-	public static void main121(String[] agrs) throws Exception
+	
+	public static class UnsignedIntegerFifo
+	{
+		private final int size;
+		private AtomicInteger count;
+		private ArrayBlockingQueue<Integer> queue;
+		private IntUnaryOperator dec_unary_op;
+		private IntUnaryOperator inc_unary_op;
+		
+		public UnsignedIntegerFifo(int size)
+		{
+			this.count = new AtomicInteger(0);
+			this.size = size;
+			this.queue = new ArrayBlockingQueue<Integer>(size);
+			
+			this.dec_unary_op = new IntUnaryOperator()
+			{
+				@Override
+				public int applyAsInt(int a) 
+				{
+					return Math.min(0, a-1);
+				}
+		
+			};
+			
+			this.inc_unary_op = new IntUnaryOperator()
+			{
+				@Override
+				public int applyAsInt(int a) 
+				{
+					return Math.min(size, a+1);
+				}
+		
+			};
+		}
+		
+		public boolean add(int val)
+		{
+			if(val<0)
+				return false;
+			
+			int current_size = count.getAndUpdate(inc_unary_op);
+			if(current_size>=size)
+				return false;
+			
+			boolean added = queue.add(val);
+			if(!added)
+			{
+				count.getAndUpdate(dec_unary_op);
+			}
+			
+			return added;
+		}
+		
+		public int remove()
+		{
+			try
+			{
+				int current_size = count.getAndUpdate(dec_unary_op);
+				if(current_size==0)
+					return -1;
+				
+				return (int)queue.remove();
+				
+			}catch(NoSuchElementException  e)
+			{
+				return -1;
+			}
+			
+		}
+		
+		public Iterator<Integer> iterator()
+		{
+			return new Iterator<Integer>(){
+
+		            private Iterator iterator = queue.iterator();
+
+		            @Override
+		            public boolean hasNext() {
+		                return iterator.hasNext();
+		            }
+
+		            @Override
+		            public Integer next() {
+		                return (int)iterator.next();
+		            }
+
+		            @Override
+		            public void remove() {
+		                throw new UnsupportedOperationException();
+		            }
+		        };
+		}
+		
+	}
+	
+	private static class ConcurrentBuffer
+	{
+		public final int itemLength;
+		private ArrayBlockingQueue<DatagramPacket> process_pos;
+		private ArrayBlockingQueue<DatagramPacket> free_pos;
+		public final int size;
+		
+		public ConcurrentBuffer(int nb_items, int item_size)
+		{
+			this.itemLength = item_size;
+			this.process_pos = new ArrayBlockingQueue<DatagramPacket>(nb_items);
+			this.free_pos = new ArrayBlockingQueue<DatagramPacket>(nb_items);
+			
+			for(int i=0; i<nb_items; i++)
+			{
+				byte[] buffer = new byte[item_size];
+				DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+				free_pos.add(packet);
+			}
+			
+			this.size = nb_items;
+		}
+		
+		public DatagramPacket producerLock()
+		{
+			return free_pos.poll();
+		}
+		
+		public boolean producerUnlock(DatagramPacket packet)
+		{	
+			//PRODUCER_VAL+="producer unlock index="+lock+"\n";
+			return process_pos.add(packet);
+		}
+		
+		
+		public DatagramPacket consumerLock()
+		{
+			return process_pos.poll();
+		}
+		
+		public boolean consumerUnlock(DatagramPacket packet)
+		{
+			return free_pos.add(packet);
+		}
+		
+		
+		public Iterator<DatagramPacket> iterator()
+		{
+			return new Iterator<DatagramPacket>(){
+				
+				private DatagramPacket _next = process_pos.poll();
+				
+	            @Override
+	            public boolean hasNext() {
+	                return (_next!=null);
+	            }
+
+	            @Override
+	            public DatagramPacket next() {
+	            	DatagramPacket val = _next;
+	            	_next = process_pos.poll();
+	                
+	            	return val;
+	            }
+
+	            @Override
+	            public void remove() {
+	                throw new UnsupportedOperationException();
+	            }
+	        };
+		}
+		
+	}
+	
+	private static AtomicInteger processed_count = new AtomicInteger(0);
+	private static AtomicInteger received_count = new AtomicInteger(0);
+	private static volatile boolean stop_rcp = false;
+	
+	private static class Runn implements Runnable
+	{
+		private DatagramSocket socket;
+		private ConcurrentBuffer ring;
+		private PacketReader packet_reader;
+		
+		public Runn(String hostname, int port, ConcurrentBuffer ring, PacketBufferInfo info) throws SocketException, UnknownHostException
+		{
+			this.socket = new DatagramSocket(port, InetAddress.getByName(hostname));
+			this.ring = ring;
+			this.packet_reader = new PacketReader(info);
+		}
+		
+		public void stop()
+		{
+			socket.close();
+		}
+		
+		public void run()
+		{
+			
+			long count = 0;
+			
+			while(true)
+			{
+				//buffer = list_array.poll();
+				DatagramPacket packet = ring.producerLock();
+				if(packet==null)
+				{
+					//System.out.println("receiver dropped");
+					continue;
+				}
+				
+				try
+				{
+					socket.receive(packet);
+					
+					ring.producerUnlock(packet);
+					//received_count.getAndIncrement();
+					count++;
+					if(count%10000==0)
+						System.out.println("receive count="+count);
+					if(stop_rcp)
+						break;
+				}catch(IOException e)
+				{
+					e.printStackTrace();
+					break;
+				}
+			}
+			System.out.println("receiver count="+count);
+		}
+		
+	}
+	
+	private static class Runnp implements Runnable
+	{
+		private static int count = 0;
+		private final int id;
+		private ConcurrentBuffer ring;
+		private volatile boolean stop;
+		private PacketReader packet_reader;
+		
+		public Runnp(ConcurrentBuffer ring, PacketBufferInfo info)
+		{
+			this.id = this.count;
+			this.count++;
+			
+			this.ring = ring;
+			this.stop = false;
+			
+			this.packet_reader = new PacketReader(info);
+		}
+		
+		public void stop()
+		{
+			this.stop = true;
+		}
+		
+		public void run()
+		{
+			System.out.println("start process thread "+id);
+			BufferedOutputStream stream = null;
+			try {
+				File file = new File(work_directory+ File.separator +"t_"+id);
+				FileOutputStream fos = new FileOutputStream(file);
+				stream = new BufferedOutputStream(fos, ring.itemLength*255);
+				
+			} catch (FileNotFoundException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+				return ;
+			}
+			
+			
+			long count = 0;
+			byte[] buffer;
+			byte[] copy = new byte[1500];
+			int len;
+			int offset;
+			while(!stop)
+			{
+				DatagramPacket packet = ring.consumerLock();
+				if(packet==null)
+					continue;
+				
+				buffer = packet.getData();
+				len = packet.getLength();
+				offset = packet.getOffset();
+				
+				if(!packet_reader.depack(buffer, offset, len))
+				{
+					System.out.println("\t packet fail id="+id);
+					stop_rcp = true;
+					ring.consumerUnlock(packet);
+					break;
+					//continue;
+				}
+				
+				for(int i=0, j=offset; i<len; i++, j++)
+				{
+					copy[i] = buffer[j];
+				}
+				//int val = processed_count.getAndIncrement();
+				count++;
+				if(count%10000==0)
+					System.out.println("process count="+count);
+				try {
+					stream.write(buffer, offset, len);
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					return;
+				}
+				
+				ring.consumerUnlock(packet);
+			}
+			
+			System.out.println("process count="+count);
+			
+			try {
+				stream.close();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+	}
+	
+	public static Manifest receiveManifest(String hostname, int port) throws IOException
+	{
+		DatagramSocket socket = new DatagramSocket(port, InetAddress.getByName(hostname));
+		
+		byte[] buffer = new byte[1500];
+		DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+		
+		System.out.println("waiting manifest...");
+		packet.setData(buffer, 0, buffer.length);
+		
+		socket.receive(packet);
+		
+		Manifest manifest = PacketReader.getManifest(buffer);
+		if(manifest==null)
+		{
+			System.out.println("manifest fail");
+			throw new IllegalArgumentException();
+		}
+		
+		System.out.println("manifest received");
+		
+		socket.close();
+		
+		return manifest;
+	}
+	
+	public static void main(String[] agrs) throws Exception
+	{
+		String string = "salut fonctionne";
+		
+		String path = "/home/benjamin/tmp.txt";
+		
+		File file = new File(path);
+		
+		FilePreallocator preallocator = new FilePreallocator();
+		preallocator.preallocate(file, 10*1000000000L);
+		
+		RandomAccessFile rd = new RandomAccessFile(file, "rw");
+		
+		rd.seek(5*1000000000L);
+		rd.write(2);
+		
+		rd.seek(0);
+		rd.write(250);
+		
+		rd.seek(2);
+		rd.write(45);
+		
+		rd.seek(1);
+		rd.write(41);
+		
+		
+		rd.close();
+		
+		/*
+		File tmp = new File(path);
+		BufferedRandomAccessFile rd_file = new BufferedRandomAccessFile(tmp, "rw", 2);
+		
+		byte[] array = string.getBytes();
+		int len = array.length/2;
+		
+		rd_file.seek(len);
+		rd_file.write(array, len, len);
+		//rd_file.flush();
+		
+		rd_file.seek(0);
+		rd_file.write(array, 0, len);
+		
+		rd_file.close();*/
+		
+		System.out.println("end");
+		
+	}
+	
+	
+	public static void main123(String[] agrs) throws Exception
+	{
+		System.out.println("start");
+		
+		int nb_process_thread = 3;
+		String hostname = "169.254.8.186";
+		int port = 1652;
+		int nb_packet = 1000;
+		
+		
+        Runnp[] runnnp_array = new Runnp[nb_process_thread];
+        Thread[] thread_array = new Thread[nb_process_thread+1];
+        
+        Manifest manifest = receiveManifest(hostname, port);
+        PacketBufferInfo info = new PacketBufferInfo(manifest.blockSize);
+        System.out.println("\ttotal length="+info.totalLength);
+        
+		ConcurrentBuffer ring = new ConcurrentBuffer(nb_packet, info.totalLength);
+		Runn rr =  new Runn(hostname, port, ring, info);
+		Thread t = new Thread(rr);
+        t.setDaemon(true);//stop at the end of the JVM
+        t.start(); 
+        thread_array[0] = t;
+        
+        
+        
+        for(int i=0; i<runnnp_array.length; i++)
+        {
+        	runnnp_array[i] = new Runnp(ring, info);
+        	t = new Thread(runnnp_array[i]);
+            t.setDaemon(true);//stop at the end of the JVM
+            t.start(); 
+            thread_array[i+1] = t;
+        }
+        
+        //Buffer buf = new CircularFifoBuffer(4);
+        
+        System.in.read();
+        
+        rr.stop();
+        for(int i=0; i<runnnp_array.length; i++)
+        {
+        	runnnp_array[i].stop();
+        }
+        
+        for(int i=0; i<thread_array.length; i++)
+        {
+        	thread_array[i].join();
+        }
+        
+        
+        Iterator<DatagramPacket> iterator = ring.iterator();
+        while(iterator.hasNext())
+        {
+        	iterator.next();
+        	processed_count.getAndIncrement();
+        }
+		
+       // System.out.println("received count="+received_count.get());
+        //System.out.println("processed count="+processed_count.get());
+		System.out.println("end");
+	}
+	
+	public static void main125(String[] agrs) throws Exception
 	{
 		System.out.println("sork_dir="+work_directory);
 		Parms.load();
 		Parms.instance().getNetworkConfig().setIp("169.254.8.186");
 		Parms.instance().getNetworkConfig().setPort(1652);
-		
 		long count=0;
 		
-		ConcurrentLinkedQueue<byte[]> list_array = new ConcurrentLinkedQueue<byte[]>();
-		LinkedBlockingQueue<byte[]> queue = new LinkedBlockingQueue<byte[]> ();
-		
-		RRR r = new RRR(null);
-		
-		Thread t = new Thread(r);
-        t.setDaemon(true);//stop at the end of the JVM
-        t.start(); 
-
-        
 		DatagramSocket socket = new DatagramSocket(1652, Parms.instance().getNetworkConfig().getIp());
 		
 		File file = new File(work_directory+File.separator+"tt");
+		file.createNewFile();
 		FileOutputStream fos = new FileOutputStream(file, false);
 		BufferedOutputStream  stream = new BufferedOutputStream(fos, 8192);
 		
@@ -218,7 +777,7 @@ public class Main
 		
 		DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
 		
-		socket.receive(packet);
+		/*socket.receive(packet);
 		
 		System.out.println("wait manifest");
 		Manifest manifest = PacketReader.getManifest(packet.getData().clone());
@@ -228,7 +787,7 @@ public class Main
 		System.out.println("manifest="+manifest);
 		
 		socket.setSoTimeout(10000);
-		PacketBufferInfo info = new PacketBufferInfo(manifest.blockSize);
+		PacketBufferInfo info = new PacketBufferInfo(manifest.blockSize);*/
 		
 		/*for(int i=0; i<10000; i++)
 		{
@@ -258,8 +817,6 @@ public class Main
 				}
 				
 				Container container = new Container(packetReader.getHeader(), packetReader.getBuffer());*/
-				queue.add(buffer);
-				
 				//stream.write(packet.getData().clone(), 0, packet.getLength());
 				count++;
 				/*if(count%1000==0)
@@ -270,7 +827,6 @@ public class Main
 				break;
 			}
 		}
-		r.stop();
 		stream.flush();
 		
 		socket.close();
@@ -284,7 +840,7 @@ public class Main
 		System.out.println("end");
 	}
 	
-	public static void main (String[] agrs) throws Exception
+	public static void main11 (String[] agrs) throws Exception
 	{
 		System.out.println("sork_dir="+work_directory);
 		Parms.load();
@@ -307,14 +863,14 @@ public class Main
 		ritf.start();
 	}
 	
-	public static void mai11n(String[] args) throws Exception
+	public static void main111(String[] args) throws Exception
 	{
 		System.out.println("sork_dir="+work_directory);
 		Parms.load();
 		Parms.instance().getNetworkConfig().setIp("169.254.9.13");
 		Parms.instance().getNetworkConfig().setPort(1652);
 		
-		Parms.instance().sender().setSendRate(20000);
+		Parms.instance().sender().setSendRate(100000);
 		Parms.instance().sender().setMMUPacketLength(1500);
 		Parms.instance().receiver().setWorkspace(work_directory);
 		Parms.instance().receiver().setOutPath(work_directory);
@@ -324,7 +880,7 @@ public class Main
 		
 		Sender sender = new Sender();
 		
-		sender.send(new File("/home/benjamin/eclipse-workspace/Data_diode_network_protocol/test/zipped.tar.gz"));
+		sender.send(new File("/home/benjamin/Téléchargements/Ex.Machina.2015.MULTi.TRUEFRENCH.1080p.BluRay.x264.mkv"));
 		
 		sender.close();
 	}

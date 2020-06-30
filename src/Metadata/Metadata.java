@@ -10,11 +10,11 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 
 import EnvVariables.Environment;
+import GeneralTools.Serialization;
+import GeneralTools.StreamData;
+import GeneralTools.Tools;
 import SendTools.RandomAccessByteArrayInputStream;
 import SendTools.RandomAccessInputStream;
-import generalTools.Serialization;
-import generalTools.StreamData;
-import generalTools.Tools;
 
 public abstract class Metadata implements Serializable
 {

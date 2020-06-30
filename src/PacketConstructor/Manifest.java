@@ -11,10 +11,10 @@ import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
 
 import EnvVariables.Environment;
+import GeneralTools.Serialization;
+import GeneralTools.StreamData;
+import GeneralTools.Tools;
 import Metadata.DataType;
-import generalTools.Serialization;
-import generalTools.StreamData;
-import generalTools.Tools;
 
 public class Manifest
 {

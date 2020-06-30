@@ -42,7 +42,12 @@ public class PacketReader extends Packet
 		return depack(buffer, info.offsetBuffer, info.blockSize, info.withChecksum);
 	}
 	
-	private boolean depack(byte[] buffer, int offset_buffer, int block_size, boolean with_checksum) throws IllegalArgumentException
+	public boolean depack(byte[] buffer, int offset_buffer, int block_size) throws IllegalArgumentException
+	{
+		return depack(buffer, offset_buffer, block_size, true);
+	}
+	
+	public boolean depack(byte[] buffer, int offset_buffer, int block_size, boolean with_checksum) throws IllegalArgumentException
 	{
 		if(buffer==null || (buffer.length-offset_buffer)<info.totalLength)
 		{

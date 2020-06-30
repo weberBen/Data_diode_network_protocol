@@ -1,18 +1,16 @@
-FLAGS=-fpic -Wall -Werror
+FLAGS=-fpic -Wall -Werror -std=c99
 
-PATH_LIB=../datagramSocket_C
-
-LIBS=-I/usr/lib/jvm/java-8-openjdk-amd64/include -I/usr/lib/jvm/java-8-openjdk-amd64/include/linux -I$(PATH_LIB) $(PATH_LIB)/datagramReceiver.a
+LIBS=-I/usr/lib/jvm/java-8-openjdk-amd64/include -I/usr/lib/jvm/java-8-openjdk-amd64/include/linux 
 
 NAME=libmaLib.so
 
 all : lib
 
-ReceiveTools_UdpSocket_Pointer.o : ReceiveTools_UdpSocket_Pointer.c
-	gcc $(FLAGS) -c ReceiveTools_UdpSocket_Pointer.c $(LIBS)
+GeneralTools_FilePreallocator.o : GeneralTools_FilePreallocator.c
+	gcc $(FLAGS) -c GeneralTools_FilePreallocator.c $(LIBS)
 
-lib : ReceiveTools_UdpSocket_Pointer.o
-	gcc $(FLAGS) -shared -o $(NAME) ReceiveTools_UdpSocket_Pointer.o $(LIBS)
+lib : GeneralTools_FilePreallocator.o
+	gcc $(FLAGS) -shared -o $(NAME) GeneralTools_FilePreallocator.o $(LIBS)
 
 clean :
 	rm *.o $(NAME)

@@ -17,14 +17,14 @@ import java.util.Calendar;
 
 import EnvVariables.Environment;
 import Exceptions.InvalidPacketStreamException;
+import GeneralTools.Serialization;
+import GeneralTools.StreamData;
 import Metadata.Metadata;
 import PacketConstructor.Manifest;
 import PacketConstructor.PacketHeader;
 import PacketConstructor.PacketType;
 import Metadata.DataType;
 import PacketTools.Checksum;
-import generalTools.Serialization;
-import generalTools.StreamData;
 
 public class PacketSender extends DatagramSender
 {	
@@ -129,8 +129,8 @@ public class PacketSender extends DatagramSender
 		
 		if(output!=null)
 		{
-			System.out.println("\tindex="+index+"   | length="+output.length);
-			return output.clone();
+			//System.out.println("\tindex="+index+"   | length="+output.length);
+			return output;//.clone();
 		}else
 		{
 			return null;

@@ -13,7 +13,7 @@ import java.util.Arrays;
 
 import EnvVariables.Environment;
 import EnvVariables.Environment.PacketEnumType;
-import generalTools.Serialization;
+import GeneralTools.Serialization;
 
 public class PacketHeader
 {	

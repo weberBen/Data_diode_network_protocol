@@ -51,6 +51,8 @@ import Exceptions.EndOfPacketReassemblingException;
 import Exceptions.IncompleteContentException;
 import Exceptions.InvalidPacketStreamException;
 import Exceptions.ReassemblingException;
+import GeneralTools.NetworkAddress;
+import GeneralTools.Tools;
 import Metadata.ContentActionInterface;
 import Metadata.DataType;
 import PacketConstructor.Manifest;
@@ -70,8 +72,6 @@ import UserInterface.ReceivedEvent;
 import UserInterface.ReceiverListener;
 import UserInterface.ReceptionEvent;
 import UserInterface.UnlockEvent;
-import generalTools.NetworkAddress;
-import generalTools.Tools;
 
 public class Receiver 
 {

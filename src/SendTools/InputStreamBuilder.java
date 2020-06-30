@@ -90,7 +90,7 @@ public class InputStreamBuilder
 		
 		//compute checksum
 		packet.writeChecksum();
-		System.out.println("send packet type="+type+", index="+index);
+		//System.out.println("send packet type="+type+", index="+index);
 		return packet.getBuffer();
 	}
 }

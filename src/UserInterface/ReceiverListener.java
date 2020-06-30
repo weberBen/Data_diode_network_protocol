@@ -7,7 +7,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 
-import generalTools.NetworkAddress;
+import GeneralTools.NetworkAddress;
 
 public class ReceiverListener
 {

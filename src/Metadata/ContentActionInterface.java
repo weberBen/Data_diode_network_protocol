@@ -2,7 +2,7 @@ package Metadata;
 
 import java.io.IOException;
 
-import generalTools.Tools;
+import GeneralTools.Tools;
 
 public interface ContentActionInterface 
 {

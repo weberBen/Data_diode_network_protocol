@@ -23,13 +23,16 @@ import java.util.Set;
 import EnvVariables.Environment;
 import EnvVariables.Parms;
 import Exceptions.IncompleteContentException;
+import GeneralTools.Tools;
 import PacketConstructor.Manifest;
 import PacketConstructor.PacketBufferInfo;
 import PacketConstructor.PacketHeader;
 import PacketConstructor.PacketReader;
 import PacketConstructor.PacketType;
 import PacketTools.Range;
-import generalTools.Tools;
+
+import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class InFilePacketManager extends PacketManager
 {

@@ -8,8 +8,9 @@ import java.util.Scanner;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import EnvVariables.Parms;
+import GeneralTools.NetworkAddress;
 import ReceiveTools.Receiver;
-import generalTools.NetworkAddress;
+
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 
